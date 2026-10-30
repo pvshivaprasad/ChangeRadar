@@ -98,6 +98,7 @@ class RepositoryScanner:
         all_symbols: List[Symbol] = []
         all_edges: List[DependencyEdge] = []
         file_count = 0
+        total_unresolved = 0
 
         # Traverse directory safely (followlinks=False avoids directory link recursion)
         for root, dirs, files in os.walk(self.repo_path, followlinks=False):
@@ -154,19 +155,20 @@ class RepositoryScanner:
 
                     all_symbols.extend(symbols)
                     all_edges.extend(edges)
+                    total_unresolved += parser.unresolved_calls_count
                     file_count += 1
                 except Exception:
                     # Continue scanning other files gracefully
                     pass
 
-        # Edge target normalization:
-        # Match call targets against known symbol IDs
-        known_symbol_ids = {s.id for s in all_symbols}
+        # Global edge deduplication: prevent identical (source, target, relation) edges
+        seen_edge_keys: Set[Tuple[str, str, str]] = set()
         refined_edges: List[DependencyEdge] = []
-
         for edge in all_edges:
-            # Keep edges whether target is exact symbol or module-level symbol
-            refined_edges.append(edge)
+            key = (edge.source_id, edge.target_id, edge.relation_type.value)
+            if key not in seen_edge_keys:
+                seen_edge_keys.add(key)
+                refined_edges.append(edge)
 
         duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
         commit_sha = get_current_commit_sha(self.repo_path)
@@ -180,4 +182,5 @@ class RepositoryScanner:
             symbols=all_symbols,
             edges=refined_edges,
             duration_ms=duration_ms,
+            unresolved_calls_count=total_unresolved,
         )

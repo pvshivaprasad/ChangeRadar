@@ -83,6 +83,15 @@ export interface TestRecommendation {
   priority: string;
 }
 
+export interface FileDiff {
+  file_path: string;
+  change_type: 'added' | 'modified' | 'deleted' | 'renamed' | string;
+  old_path?: string | null;
+  diff_content?: string;
+  additions: number;
+  deletions: number;
+}
+
 export interface ImpactAnalysisReport {
   repo_path: string;
   base_commit: string;
@@ -97,6 +106,7 @@ export interface ImpactAnalysisReport {
   risk_score: number;
   summary_text: string;
   created_at: string;
+  file_diffs?: FileDiff[];
 }
 
 export interface User {
@@ -113,12 +123,14 @@ export interface AuthSession {
 
 export interface RepositoryRecord {
   id: number;
+  user_id?: number;
   name: string;
   path: string;
   default_branch: string;
   file_count: number;
   symbol_count: number;
   edge_count: number;
+  is_archived?: boolean;
   last_scanned_at?: string | null;
   created_at?: string | null;
   analysis_count: number;
@@ -126,16 +138,22 @@ export interface RepositoryRecord {
 
 export interface AnalysisRecord {
   id: number;
-  repository_id: number;
+  user_id?: number;
+  repository_id?: number | null;
+  repo_name?: string;
+  repo_path?: string;
   base_commit: string;
   head_commit: string;
-  risk_level: 'low' | 'medium' | 'elevated' | 'high';
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  risk_level: 'low' | 'medium' | 'elevated' | 'high' | 'pending' | 'failed' | string;
   risk_score: number;
   changed_files_count: number;
   changed_symbols_count: number;
   impacted_symbols_count: number;
   recommended_tests_count: number;
   summary_text: string;
+  error_message?: string | null;
   created_at?: string | null;
   report?: ImpactAnalysisReport | null;
 }
+

@@ -101,7 +101,15 @@ export function RepositoriesView({
                   </button>
                   <button
                     className="icon-button"
-                    onClick={() => onDeleteRepo(repo.id)}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Are you sure you want to remove '${repo.name}' from your workspace?\n\nAll historical change impact reports will be safely preserved in your audit records.`
+                        )
+                      ) {
+                        onDeleteRepo(repo.id);
+                      }
+                    }}
                     type="button"
                     style={{ color: '#d66e68' }}
                     title="Remove repository from workspace"

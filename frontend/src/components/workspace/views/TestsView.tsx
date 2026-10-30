@@ -42,12 +42,14 @@ export function TestsView({ report, onRunSample, isLoading }: TestsViewProps) {
 
         <div className="metric-card">
           <div className="metric-top">
-            <span className="metric-label">Estimated CI Time Saved</span>
+            <span className="metric-label">Covered Altered Paths</span>
             <Clock size={18} className="metric-icon" />
           </div>
-          <strong className="metric-value">{hasData ? '~65%' : '—'}</strong>
+          <strong className="metric-value">
+            {hasData ? `${new Set(tests.map((t) => t.target_symbol_id)).size} of ${report.changed_symbols.length}` : '—'}
+          </strong>
           <span className="metric-subtext">
-            {hasData ? 'By running targeted rather than entire suite' : 'CI runtime reduction'}
+            {hasData ? 'Direct modified symbols with targeted tests' : 'Targeted test coverage'}
           </span>
         </div>
       </div>

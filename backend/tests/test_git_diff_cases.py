@@ -8,7 +8,7 @@
 - Malicious revision injection prevention
 """
 import pytest
-from app.scanner.git_diff import GitDiffProcessor, parse_unified_diff_hunks
+from app.scanner.git_diff import GitDiffProcessor, parse_file_diffs, parse_unified_diff_hunks
 from app.scanner.models import Symbol, SymbolType
 
 
@@ -146,3 +146,59 @@ def test_revision_injection_rejection(tmp_path):
 
     with pytest.raises(ValueError, match="Invalid head commit"):
         processor.get_changed_symbols(base_commit="HEAD~1", head_commit="; rm -rf /", symbols=[])
+
+
+def test_parse_file_diffs_all_change_types():
+    diff_text = """diff --git a/new_file.py b/new_file.py
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/new_file.py
+@@ -0,0 +1,5 @@
++def brand_new():
++    return True
+diff --git a/modified.py b/modified.py
+index abc..def 100644
+--- a/modified.py
++++ b/modified.py
+@@ -10,3 +10,4 @@
+-    old_call()
++    new_call()
++    extra_line()
+diff --git a/obsolete.py b/obsolete.py
+deleted file mode 100644
+--- a/obsolete.py
++++ /dev/null
+@@ -1,5 +0,0 @@
+-def gone():
+-    pass
+diff --git a/old_name.py b/renamed.py
+similarity index 95%
+rename from old_name.py
+rename to renamed.py
+@@ -1,2 +1,2 @@
+"""
+    diffs = parse_file_diffs(diff_text)
+    assert len(diffs) == 4
+
+    # 1. Added
+    added = next(d for d in diffs if d.file_path == "new_file.py")
+    assert added.change_type == "added"
+    assert added.additions == 2
+    assert added.deletions == 0
+
+    # 2. Modified
+    mod = next(d for d in diffs if d.file_path == "modified.py")
+    assert mod.change_type == "modified"
+    assert mod.additions == 2
+    assert mod.deletions == 1
+
+    # 3. Deleted
+    del_file = next(d for d in diffs if d.file_path == "obsolete.py")
+    assert del_file.change_type == "deleted"
+    assert del_file.deletions == 2
+
+    # 4. Renamed
+    ren = next(d for d in diffs if d.file_path == "renamed.py")
+    assert ren.change_type == "renamed"
+    assert ren.old_path == "old_name.py"

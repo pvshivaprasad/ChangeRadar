@@ -3,11 +3,82 @@ import re
 import subprocess
 from typing import Dict, List, Set, Tuple
 
-from .models import Symbol, SymbolType
+from .models import FileDiff, Symbol, SymbolType
 from .parser import module_name_from_file_path
 
 # Strict regex to ensure git revision parameters contain only valid ref characters
 REVISION_RE = re.compile(r"^[a-zA-Z0-9_\-\.\/\^~@]+$")
+
+
+def parse_file_diffs(diff_output: str) -> List[FileDiff]:
+    """
+    Parses unified git diff output into structured FileDiff items
+    categorizing added, modified, deleted, and renamed files,
+    along with additions count, deletions count, and unified diff hunks.
+    """
+    if not diff_output or not diff_output.strip():
+        return []
+
+    file_diffs: List[FileDiff] = []
+    lines = diff_output.splitlines()
+    i = 0
+    diff_file_re = re.compile(r"^diff --git a/(.*?) b/(.*?)$")
+
+    while i < len(lines):
+        line = lines[i]
+        match = diff_file_re.match(line)
+        if match:
+            old_path = match.group(1).replace("\\", "/")
+            new_path = match.group(2).replace("\\", "/")
+
+            section_lines = [line]
+            i += 1
+            while i < len(lines) and not diff_file_re.match(lines[i]):
+                section_lines.append(lines[i])
+                i += 1
+
+            is_new = any(l.startswith("new file mode") or l.startswith("--- /dev/null") for l in section_lines)
+            is_deleted = any(l.startswith("deleted file mode") or l.startswith("+++ /dev/null") for l in section_lines)
+            is_renamed = any(l.startswith("similarity index") or l.startswith("rename from") for l in section_lines) or (old_path != new_path and not is_new and not is_deleted)
+
+            if is_new:
+                change_type = "added"
+                target_path = new_path
+            elif is_deleted:
+                change_type = "deleted"
+                target_path = old_path
+            elif is_renamed:
+                change_type = "renamed"
+                target_path = new_path
+            else:
+                change_type = "modified"
+                target_path = new_path
+
+            additions = sum(1 for l in section_lines if l.startswith("+") and not l.startswith("+++"))
+            deletions = sum(1 for l in section_lines if l.startswith("-") and not l.startswith("---"))
+
+            # Extract unified diff hunks starting from the first @@
+            hunk_start = -1
+            for idx, l in enumerate(section_lines):
+                if l.startswith("@@"):
+                    hunk_start = idx
+                    break
+            diff_content = "\n".join(section_lines[hunk_start:]) if hunk_start != -1 else "\n".join(section_lines)
+
+            file_diffs.append(
+                FileDiff(
+                    file_path=target_path,
+                    change_type=change_type,
+                    old_path=old_path if is_renamed else None,
+                    diff_content=diff_content,
+                    additions=additions,
+                    deletions=deletions,
+                )
+            )
+        else:
+            i += 1
+
+    return file_diffs
 
 
 def parse_unified_diff_hunks(
@@ -155,9 +226,72 @@ class GitDiffProcessor:
                             changed_symbols.append(sym)
                         break
 
-        # Filter out module symbol if more specific classes/functions inside it were detected
-        has_specific = any(s.symbol_type.value in ("function", "method", "class") for s in changed_symbols)
-        if has_specific:
-            changed_symbols = [s for s in changed_symbols if s.symbol_type.value != "module"]
+        # 3. Hierarchical specificity filtering (per-file)
+        symbols_by_file: Dict[str, List[Symbol]] = {}
+        for s in changed_symbols:
+            symbols_by_file.setdefault(s.file_path, []).append(s)
+
+        filtered_symbols: List[Symbol] = []
+        for file_path, file_syms in symbols_by_file.items():
+            # If any function, method, or class was modified in this file,
+            # drop the module-level symbol for this specific file.
+            has_specific = any(s.symbol_type != SymbolType.MODULE for s in file_syms)
+            candidates = [s for s in file_syms if s.symbol_type != SymbolType.MODULE] if has_specific else file_syms
+
+            # Method vs Class specificity:
+            # If a class and its methods are both candidates in this file:
+            # Check if all changed ranges overlapping with the class fall strictly within its child methods.
+            classes = [s for s in candidates if s.symbol_type == SymbolType.CLASS]
+            methods = [s for s in candidates if s.symbol_type == SymbolType.METHOD]
+            ranges = changed_ranges_by_file.get(file_path, [])
+
+            classes_to_remove: Set[str] = set()
+            for cls_sym in classes:
+                child_methods = [m for m in methods if m.parent_id == cls_sym.id or m.id.startswith(f"{cls_sym.id}.")]
+                if child_methods:
+                    all_in_methods = True
+                    has_overlap = False
+                    for r_start, r_end in ranges:
+                        if max(cls_sym.line_start, r_start) <= min(cls_sym.line_end, r_end):
+                            has_overlap = True
+                            in_any_method = any(
+                                max(m.line_start, r_start) <= min(m.line_end, r_end)
+                                for m in child_methods
+                            )
+                            if not in_any_method:
+                                all_in_methods = False
+                                break
+                    if has_overlap and all_in_methods:
+                        classes_to_remove.add(cls_sym.id)
+
+            candidates = [s for s in candidates if s.id not in classes_to_remove]
+            filtered_symbols.extend(candidates)
+
+        changed_symbols = filtered_symbols
 
         return changed_files, changed_symbols
+
+    def get_file_diffs(self, base_commit: str, head_commit: str) -> List[FileDiff]:
+        """
+        Runs git diff -U3 between base_commit and head_commit,
+        and returns structured file diffs with hunks for visual inspection.
+        """
+        if not REVISION_RE.match(base_commit) or base_commit.startswith("-"):
+            raise ValueError(f"Invalid base commit ref: {base_commit}")
+        if not REVISION_RE.match(head_commit) or head_commit.startswith("-"):
+            raise ValueError(f"Invalid head commit ref: {head_commit}")
+
+        cmd = ["git", "-C", self.repo_path, "diff", "-U3", base_commit, head_commit]
+        try:
+            res = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            if res.returncode != 0:
+                return []
+            return parse_file_diffs(res.stdout)
+        except Exception:
+            return []

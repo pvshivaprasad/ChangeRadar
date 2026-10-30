@@ -30,6 +30,7 @@ def run_impact_analysis(
         head_commit=head_commit,
         symbols=scan_summary.symbols,
     )
+    file_diffs = diff_processor.get_file_diffs(base_commit=base_commit, head_commit=head_commit)
 
     graph_engine = DependencyGraphEngine(
         symbols=scan_summary.symbols,
@@ -66,5 +67,7 @@ def run_impact_analysis(
         risk_level=risk_level,
         risk_score=risk_score,
         summary_text=summary_text,
+        unresolved_calls_count=scan_summary.unresolved_calls_count,
         created_at=datetime.now(timezone.utc).isoformat(),
+        file_diffs=file_diffs,
     )

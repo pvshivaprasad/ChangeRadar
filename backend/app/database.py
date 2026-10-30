@@ -79,19 +79,68 @@ def init_db() -> bool:
         from . import models  # noqa: F401
         Base.metadata.create_all(bind=engine)
 
+        # Ensure any newly added columns exist in existing SQLite databases
+        try:
+            with engine.connect() as conn:
+                res = conn.execute(text("PRAGMA table_info(repositories)")).fetchall()
+                cols = [r[1] for r in res]
+                if cols and "repo_type" not in cols:
+                    conn.execute(text("ALTER TABLE repositories ADD COLUMN repo_type VARCHAR(50) DEFAULT 'local'"))
+                    conn.commit()
+        except Exception:
+            pass
+
         # Seed default development user if not present
         db = SessionLocal()
         try:
+            from datetime import datetime, timezone, timedelta
             user = db.query(models.User).filter_by(email="dev@changeradar.io").first()
             if not user:
+                dev_token = "dev-token-lead-engineer"
+                token_hash = models.hash_token(dev_token)
                 dev_user = models.User(
                     email="dev@changeradar.io",
                     name="Lead Engineer",
                     hashed_password=models.hash_password("changeradar2026"),
-                    api_token="dev-token-lead-engineer",
+                    api_token=dev_token,
+                    token_expires_at=datetime.now(timezone.utc) + timedelta(days=365),
                 )
                 db.add(dev_user)
                 db.commit()
+                db.refresh(dev_user)
+
+                dev_session = models.UserSession(
+                    user_id=dev_user.id,
+                    token_hash=token_hash,
+                    token_prefix=dev_token[:8],
+                    expires_at=datetime.now(timezone.utc) + timedelta(days=365),
+                    created_at=datetime.now(timezone.utc),
+                    last_accessed_at=datetime.now(timezone.utc),
+                    user_agent="ChangeRadar System Seed",
+                    ip_address="127.0.0.1",
+                )
+                db.add(dev_session)
+                db.commit()
+            else:
+                if not user.token_expires_at:
+                    user.token_expires_at = datetime.now(timezone.utc) + timedelta(days=365)
+                    db.commit()
+                dev_token = user.api_token or "dev-token-lead-engineer"
+                token_hash = models.hash_token(dev_token)
+                session = db.query(models.UserSession).filter_by(token_hash=token_hash).first()
+                if not session:
+                    dev_session = models.UserSession(
+                        user_id=user.id,
+                        token_hash=token_hash,
+                        token_prefix=dev_token[:8],
+                        expires_at=datetime.now(timezone.utc) + timedelta(days=365),
+                        created_at=datetime.now(timezone.utc),
+                        last_accessed_at=datetime.now(timezone.utc),
+                        user_agent="ChangeRadar System Seed",
+                        ip_address="127.0.0.1",
+                    )
+                    db.add(dev_session)
+                    db.commit()
         finally:
             db.close()
         return True

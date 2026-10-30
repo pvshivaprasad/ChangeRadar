@@ -18,8 +18,9 @@ class RelationType(str, Enum):
 
 
 class ConfidenceLevel(str, Enum):
-    CONFIRMED = "confirmed"  # Direct AST resolution (e.g. imports, direct class inheritance)
-    INFERRED = "inferred"    # Heuristic / dynamic call resolution
+    CONFIRMED = "confirmed"    # Direct static AST resolution (e.g. imports, explicit class inheritance, self.method)
+    INFERRED = "inferred"      # Local static type inference (e.g. var = Class(); var.method())
+    UNRESOLVED = "unresolved"  # Dynamic invocation, runtime dispatch, or untracked targets
 
 
 class Symbol(BaseModel):
@@ -51,6 +52,7 @@ class ScanSummary(BaseModel):
     symbols: List[Symbol]
     edges: List[DependencyEdge]
     duration_ms: float
+    unresolved_calls_count: int = 0
 
 
 class ImpactType(str, Enum):
@@ -79,6 +81,15 @@ class TestRecommendation(BaseModel):
     priority: str = "high"  # "high", "medium"
 
 
+class FileDiff(BaseModel):
+    file_path: str
+    change_type: str  # "added", "modified", "deleted", "renamed"
+    old_path: Optional[str] = None
+    diff_content: str = ""
+    additions: int = 0
+    deletions: int = 0
+
+
 class ImpactAnalysisReport(BaseModel):
     repo_path: str
     base_commit: str
@@ -92,4 +103,6 @@ class ImpactAnalysisReport(BaseModel):
     risk_level: str  # "low", "medium", "elevated", "high"
     risk_score: float  # 0.0 to 100.0
     summary_text: str
+    unresolved_calls_count: int = 0
     created_at: str
+    file_diffs: List[FileDiff] = Field(default_factory=list)

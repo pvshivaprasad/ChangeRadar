@@ -2,8 +2,16 @@ import { useEffect, useState } from 'react';
 import { Landing } from './components/landing/Landing';
 import { Workspace } from './components/workspace/Workspace';
 import { AuthPage } from './components/auth/AuthPage';
-import { clearAuthToken, fetchCurrentUser } from './api/client';
+import {
+  clearAuthToken,
+  fetchCurrentUser,
+  getAuthToken,
+  getCachedUser,
+  logoutUser,
+  setCachedUser,
+} from './api/client';
 import { User } from './types';
+import { Radar } from 'lucide-react';
 
 export type AppView = 'landing' | 'workspace' | 'auth';
 
@@ -16,11 +24,11 @@ function getViewFromHash(): AppView {
 
 export default function App() {
   const [view, setView] = useState<AppView>(getViewFromHash);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(getCachedUser);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
 
-  // 1. Initial Session Check (persists login after page refresh)
+  // 1. Initial Session Check (Validates session with backend while avoiding UI flicker)
   useEffect(() => {
     let isMounted = true;
     async function checkSession() {
@@ -29,6 +37,7 @@ export default function App() {
         if (isMounted) {
           if (currentUser) {
             setUser(currentUser);
+            setCachedUser(currentUser, true);
           } else {
             setUser(null);
           }
@@ -64,30 +73,71 @@ export default function App() {
   const handleLoginSuccess = (loggedInUser: User) => {
     setUser(loggedInUser);
     setAuthNotice(null);
-    navigateTo('workspace');
+    window.history.replaceState(null, '', '#workspace');
+    setView('workspace');
+    window.location.hash = 'workspace';
   };
 
-  const handleLogout = () => {
-    clearAuthToken();
+  const handleLogout = async () => {
+    await logoutUser();
     setUser(null);
-    navigateTo('landing');
+    window.history.replaceState(null, '', '#landing');
+    setView('landing');
+    window.location.hash = 'landing';
   };
 
   const handleLaunchWorkspace = () => {
-    if (!user) {
-      navigateTo('auth', 'Please sign in to access your ChangeRadar workspace.');
-    } else {
+    if (user || getAuthToken()) {
       navigateTo('workspace');
+    } else {
+      navigateTo('auth', 'Please sign in to access your ChangeRadar workspace.');
     }
   };
 
+  // Protected route loading state (prevents authentication flicker)
+  if (view === 'workspace' && isAuthChecking && !user && getAuthToken()) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          backgroundColor: 'var(--ws-bg)',
+          color: 'var(--ws-text)',
+          gap: '16px',
+        }}
+      >
+        <div
+          style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '12px',
+            backgroundColor: 'var(--lime)',
+            display: 'grid',
+            placeItems: 'center',
+            color: '#171916',
+            boxShadow: '0 0 20px rgba(199, 243, 107, 0.4)',
+            animation: 'pulse 1.8s infinite ease-in-out',
+          }}
+        >
+          <Radar size={28} />
+        </div>
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--ws-text-muted)' }}>
+          Validating workspace session...
+        </p>
+      </div>
+    );
+  }
+
   // Protected route enforcement
-  if (view === 'workspace' && !isAuthChecking && !user) {
+  if (view === 'workspace' && !isAuthChecking && !user && !getAuthToken()) {
     return (
       <AuthPage
         onSuccess={handleLoginSuccess}
         onBack={() => navigateTo('landing')}
-        initialNotice="Please sign in to access your ChangeRadar workspace."
+        initialNotice={authNotice || 'Please sign in to access your ChangeRadar workspace.'}
       />
     );
   }
@@ -114,6 +164,7 @@ export default function App() {
 
   return (
     <Landing
+      currentUser={user}
       onLaunch={handleLaunchWorkspace}
       onSignIn={() => navigateTo('auth')}
       onHome={() => navigateTo('landing')}

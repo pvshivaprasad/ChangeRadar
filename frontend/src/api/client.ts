@@ -10,24 +10,76 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 const TOKEN_KEY = 'changeradar_session_token';
+const USER_KEY = 'changeradar_cached_user';
+const ACTIVE_ANALYSIS_KEY = 'changeradar_active_analysis_id';
+
+// ---------------------------------------------------------------------------
+// Session & Cache Helpers
+// ---------------------------------------------------------------------------
+
+let inMemorySessionToken: string | null = null;
 
 export function getAuthToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+  return inMemorySessionToken || localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
 }
 
 export function setAuthToken(token: string, remember: boolean = true): void {
-  if (remember) {
-    localStorage.setItem(TOKEN_KEY, token);
-    sessionStorage.removeItem(TOKEN_KEY);
-  } else {
-    sessionStorage.setItem(TOKEN_KEY, token);
-    localStorage.removeItem(TOKEN_KEY);
-  }
+  inMemorySessionToken = token;
+  // Security best practice: Rely on HttpOnly cookie for persistent browser storage
+  // to eliminate XSS token exfiltration risks.
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
 }
 
 export function clearAuthToken(): void {
+  inMemorySessionToken = null;
   localStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(TOKEN_KEY);
+}
+
+export function getCachedUser(): User | null {
+  try {
+    const raw = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setCachedUser(user: User, remember: boolean = true): void {
+  const serialized = JSON.stringify(user);
+  if (remember) {
+    localStorage.setItem(USER_KEY, serialized);
+    sessionStorage.removeItem(USER_KEY);
+  } else {
+    sessionStorage.setItem(USER_KEY, serialized);
+    localStorage.removeItem(USER_KEY);
+  }
+}
+
+export function clearCachedUser(): void {
+  localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(USER_KEY);
+}
+
+export function getActiveAnalysisId(): number | null {
+  const val = sessionStorage.getItem(ACTIVE_ANALYSIS_KEY) || localStorage.getItem(ACTIVE_ANALYSIS_KEY);
+  return val ? parseInt(val, 10) : null;
+}
+
+export function setActiveAnalysisId(id: number | null): void {
+  if (id === null) {
+    sessionStorage.removeItem(ACTIVE_ANALYSIS_KEY);
+    localStorage.removeItem(ACTIVE_ANALYSIS_KEY);
+  } else {
+    sessionStorage.setItem(ACTIVE_ANALYSIS_KEY, id.toString());
+    localStorage.setItem(ACTIVE_ANALYSIS_KEY, id.toString());
+  }
+}
+
+export function clearActiveAnalysisId(): void {
+  sessionStorage.removeItem(ACTIVE_ANALYSIS_KEY);
+  localStorage.removeItem(ACTIVE_ANALYSIS_KEY);
 }
 
 function authHeaders(): Record<string, string> {
@@ -51,6 +103,7 @@ export async function fetchSystemHealth(): Promise<SystemHealth> {
     const res = await fetch(`${API_BASE}/health`, {
       signal: controller.signal,
       headers: { Accept: 'application/json' },
+      credentials: 'include',
     });
     clearTimeout(timeoutId);
 
@@ -95,12 +148,16 @@ export async function loginUser(email: string, password: string): Promise<AuthSe
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ email, password }),
+    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || 'Login failed. Please check your credentials.');
   }
-  return res.json();
+  const session: AuthSession = await res.json();
+  setAuthToken(session.token, true);
+  setCachedUser(session.user, true);
+  return session;
 }
 
 export async function registerUser(name: string, email: string, password: string): Promise<AuthSession> {
@@ -108,29 +165,55 @@ export async function registerUser(name: string, email: string, password: string
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ name, email, password }),
+    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || 'Registration failed.');
   }
-  return res.json();
+  const session: AuthSession = await res.json();
+  setAuthToken(session.token, true);
+  setCachedUser(session.user, true);
+  return session;
+}
+
+export async function logoutUser(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/v1/auth/logout`, {
+      method: 'POST',
+      headers: authHeaders(),
+      credentials: 'include',
+    });
+  } catch {
+    // Continue local cleanup even if server is offline
+  } finally {
+    clearAuthToken();
+    clearCachedUser();
+    clearActiveAnalysisId();
+  }
 }
 
 export async function fetchCurrentUser(): Promise<User | null> {
   const token = getAuthToken();
-  if (!token) return null;
-
+  // If no token in storage, check if cookie works with /auth/me
   try {
     const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
       headers: authHeaders(),
+      credentials: 'include',
     });
     if (!res.ok) {
-      clearAuthToken();
+      if (res.status === 401) {
+        clearAuthToken();
+        clearCachedUser();
+      }
       return null;
     }
-    return res.json();
+    const user: User = await res.json();
+    setCachedUser(user, true);
+    return user;
   } catch {
-    return null;
+    // Return cached user if offline temporarily
+    return getCachedUser();
   }
 }
 
@@ -141,6 +224,7 @@ export async function fetchCurrentUser(): Promise<User | null> {
 export async function fetchRepositories(): Promise<RepositoryRecord[]> {
   const res = await fetch(`${API_BASE}/api/v1/repositories`, {
     headers: authHeaders(),
+    credentials: 'include',
   });
   if (!res.ok) {
     return [];
@@ -157,6 +241,7 @@ export async function createRepository(
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ path, name, default_branch: defaultBranch }),
+    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -169,6 +254,7 @@ export async function deleteRepository(id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/repositories/${id}`, {
     method: 'DELETE',
     headers: authHeaders(),
+    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -179,6 +265,7 @@ export async function deleteRepository(id: number): Promise<void> {
 export async function fetchRepositoryAnalyses(id: number): Promise<AnalysisRecord[]> {
   const res = await fetch(`${API_BASE}/api/v1/repositories/${id}/analyses`, {
     headers: authHeaders(),
+    credentials: 'include',
   });
   if (!res.ok) {
     return [];
@@ -189,9 +276,21 @@ export async function fetchRepositoryAnalyses(id: number): Promise<AnalysisRecor
 export async function fetchAllAnalyses(): Promise<AnalysisRecord[]> {
   const res = await fetch(`${API_BASE}/api/v1/analyses`, {
     headers: authHeaders(),
+    credentials: 'include',
   });
   if (!res.ok) {
     return [];
+  }
+  return res.json();
+}
+
+export async function fetchAnalysisById(id: number): Promise<AnalysisRecord | null> {
+  const res = await fetch(`${API_BASE}/api/v1/analyses/${id}`, {
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    return null;
   }
   return res.json();
 }
@@ -205,6 +304,7 @@ export async function analyzePersistedRepository(
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ base_commit: baseCommit, head_commit: headCommit }),
+    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -219,7 +319,8 @@ export async function analyzePersistedRepository(
 
 export async function fetchSampleAnalysis(): Promise<ImpactAnalysisReport> {
   const res = await fetch(`${API_BASE}/api/v1/sample/run`, {
-    headers: { Accept: 'application/json' },
+    headers: authHeaders(),
+    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -230,7 +331,8 @@ export async function fetchSampleAnalysis(): Promise<ImpactAnalysisReport> {
 
 export async function fetchSampleScan(): Promise<ScanSummary> {
   const res = await fetch(`${API_BASE}/api/v1/sample/scan`, {
-    headers: { Accept: 'application/json' },
+    headers: authHeaders(),
+    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -246,15 +348,13 @@ export async function analyzeRepository(
 ): Promise<ImpactAnalysisReport> {
   const res = await fetch(`${API_BASE}/api/v1/analyze`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
+    headers: authHeaders(),
     body: JSON.stringify({
       repo_path: repoPath,
       base_commit: baseCommit,
       head_commit: headCommit,
     }),
+    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -266,11 +366,9 @@ export async function analyzeRepository(
 export async function scanRepository(repoPath: string): Promise<ScanSummary> {
   const res = await fetch(`${API_BASE}/api/v1/scan`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
+    headers: authHeaders(),
     body: JSON.stringify({ repo_path: repoPath }),
+    credentials: 'include',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

@@ -186,14 +186,19 @@ export function OverviewView({
 
           {hasData ? (
             <div className="real-activity-list">
-              <div className="activity-item">
+              <div
+                className="activity-item"
+                onClick={() => onNavigate('analysis')}
+                style={{ cursor: 'pointer' }}
+                title="Click to inspect this change impact evaluation"
+              >
                 <div className="activity-icon-badge">
                   <CheckCircle2 size={18} color="#8bb736" />
                 </div>
                 <div className="activity-details">
                   <b>Evaluated commit {report.head_commit.slice(0, 7)} against {report.base_commit.slice(0, 7)}</b>
                   <p>{report.summary_text}</p>
-                  <small>{new Date(report.created_at).toLocaleTimeString()} · Verified deterministic AST scan</small>
+                  <small>{new Date(report.created_at).toLocaleTimeString()} · Click to inspect full report</small>
                 </div>
                 <span className={`risk-badge risk-${report.risk_level}`}>
                   {report.risk_level.toUpperCase()}

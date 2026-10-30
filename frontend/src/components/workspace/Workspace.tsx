@@ -15,7 +15,9 @@ import {
   fetchRepositories,
   fetchSampleAnalysis,
   fetchSampleScan,
+  getActiveAnalysisId,
   scanRepository,
+  setActiveAnalysisId,
 } from '../../api/client';
 import { Sidebar, navItems } from './Sidebar';
 import { Topbar } from './Topbar';
@@ -36,7 +38,30 @@ interface WorkspaceProps {
 }
 
 export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
-  const [page, setPage] = useState<PageId>('overview');
+  const [page, setPageState] = useState<PageId>(() => {
+    try {
+      const saved = localStorage.getItem('changeradar_ws_page');
+      if (
+        saved &&
+        ['overview', 'repositories', 'analysis', 'dependencies', 'tests', 'reports'].includes(saved)
+      ) {
+        return saved as PageId;
+      }
+    } catch {
+      // Ignore storage restrictions
+    }
+    return 'overview';
+  });
+
+  const setPage = (newPage: PageId) => {
+    setPageState(newPage);
+    try {
+      localStorage.setItem('changeradar_ws_page', newPage);
+    } catch {
+      // Ignore
+    }
+  };
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showConnect, setShowConnect] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -60,7 +85,19 @@ export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
 
     fetchAllAnalyses()
       .then((records) => {
-        if (mounted) setAnalyses(records);
+        if (mounted) {
+          setAnalyses(records);
+          // Restore user's previous active analysis or latest completed analysis
+          const activeId = getActiveAnalysisId();
+          let target = records.find((r) => r.id === activeId);
+          if (!target || !target.report) {
+            target = records.find((r) => r.status === 'completed' && r.report) || records[0];
+          }
+          if (target && target.report) {
+            setReport(target.report);
+            setActiveAnalysisId(target.id);
+          }
+        }
       })
       .catch(() => {});
 
@@ -116,7 +153,11 @@ export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
         const scanData = await fetchSampleScan();
         setScan(scanData);
       }
-      fetchAllAnalyses().then(setAnalyses).catch(() => {});
+      const records = await fetchAllAnalyses();
+      setAnalyses(records);
+      if (records.length > 0 && records[0].id) {
+        setActiveAnalysisId(records[0].id);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Analysis failed';
       setAnalysisError(msg);
@@ -137,12 +178,24 @@ export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
       setReport(data);
       const scanData = await scanRepository(customPath);
       setScan(scanData);
-      fetchAllAnalyses().then(setAnalyses).catch(() => {});
+      const records = await fetchAllAnalyses();
+      setAnalyses(records);
+      if (records.length > 0 && records[0].id) {
+        setActiveAnalysisId(records[0].id);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Custom analysis failed';
       setAnalysisError(msg);
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleSelectAnalysis = (record: AnalysisRecord) => {
+    if (record.report) {
+      setReport(record.report);
+      setActiveAnalysisId(record.id);
+      setPage('analysis');
     }
   };
 
@@ -269,6 +322,8 @@ export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
           {page === 'analysis' && (
             <AnalysisView
               report={report}
+              analyses={analyses}
+              onSelectAnalysis={handleSelectAnalysis}
               onNavigate={() => setPage('repositories')}
               onRunSample={handleRunSampleAnalysis}
               onCustomAnalyze={handleCustomAnalysis}
@@ -297,6 +352,7 @@ export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
             <ReportsView
               report={report}
               analyses={analyses}
+              onSelectAnalysis={handleSelectAnalysis}
               onRunSample={handleRunSampleAnalysis}
               isLoading={isAnalyzing}
             />
