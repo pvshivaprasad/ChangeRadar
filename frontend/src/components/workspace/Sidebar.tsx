@@ -7,6 +7,8 @@ import {
   CircleHelp,
   GitBranch,
   Github,
+  GitPullRequest,
+  History,
   LayoutDashboard,
   LogOut,
   Settings2,
@@ -19,10 +21,13 @@ import { NavItem, PageId, User } from '../../types';
 export const navItems: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'repositories', label: 'Repositories', icon: Github },
-  { id: 'analysis', label: 'Change analysis', icon: GitBranch, badge: 'NEW' },
+  { id: 'pull-requests', label: 'Pull requests', icon: GitPullRequest, badge: 'v1.0' },
+  { id: 'analysis', label: 'Change analysis', icon: GitBranch },
+  { id: 'historical', label: 'Historical intelligence', icon: History, badge: 'HOT' },
   { id: 'dependencies', label: 'Dependency map', icon: Workflow },
   { id: 'tests', label: 'Test intelligence', icon: Check },
   { id: 'reports', label: 'Risk reports', icon: Activity },
+  { id: 'settings', label: 'Integrations', icon: Settings2 },
 ];
 
 interface SidebarProps {

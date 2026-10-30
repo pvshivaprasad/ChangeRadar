@@ -24,6 +24,10 @@ from .scanner import (
     ScanSummary,
     run_impact_analysis,
 )
+from .github import GitHubClient, GitHubClientError, GitHubService, format_pr_comment
+from .historical import HistoricalIntelligenceService
+from .jobs import BackgroundJobManager
+from .security import verify_github_webhook_signature, mask_token
 
 from contextlib import asynccontextmanager
 
@@ -37,14 +41,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    description="Software change impact intelligence API.",
-    version="0.1.1",
+    description="Connected software change impact intelligence platform.",
+    version="1.0.0",
     lifespan=lifespan,
 )
 
+cors_origins_list = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+if settings.frontend_origin not in cors_origins_list:
+    cors_origins_list.append(settings.frontend_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_origin, "http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_origins=cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -347,7 +355,7 @@ def health() -> HealthResponse:
     return HealthResponse(
         status=overall_status,
         service="changeradar-api",
-        version="0.1.1",
+        version="1.0.0",
         environment=settings.environment,
         database=DatabaseHealth(
             connected=db_status["connected"],
@@ -902,3 +910,326 @@ def scan_sample_repository() -> ScanSummary:
         return scanner.scan()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Sample scan failure: {str(exc)}")
+
+
+# ---------------------------------------------------------------------------
+# Readiness Check
+# ---------------------------------------------------------------------------
+
+@app.get("/ready", tags=["health"])
+@app.get(f"{settings.api_v1_prefix}/ready", tags=["health"])
+def check_readiness():
+    """Verifies that the database and application are ready to serve requests."""
+    db_status = check_database_connection()
+    if not db_status["connected"]:
+        raise HTTPException(status_code=503, detail=f"Database not ready: {db_status.get('error')}")
+    return {"status": "ready", "database": "connected", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+# ---------------------------------------------------------------------------
+# GitHub Integration Endpoints
+# ---------------------------------------------------------------------------
+
+class GitHubConnectRequest(BaseModel):
+    access_token: str
+    account_type: str = "oauth"
+    scopes: str = "repo,read:user"
+
+
+class GitHubImportRequest(BaseModel):
+    full_name: str
+
+
+class PullRequestAnalyzeRequest(BaseModel):
+    post_comment: bool = False
+    background: bool = False
+
+
+class PullRequestCommentRequest(BaseModel):
+    body_markdown: Optional[str] = None
+
+
+@app.post(f"{settings.api_v1_prefix}/github/connect", tags=["github"])
+async def connect_github_account(
+    req: GitHubConnectRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Securely links a GitHub account or personal access token to the current user."""
+    svc = GitHubService(db)
+    try:
+        res = await svc.connect_account(
+            user_id=current_user.id,
+            access_token=req.access_token,
+            account_type=req.account_type,
+            scopes=req.scopes,
+        )
+        return res
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"GitHub connection failed: {str(exc)}")
+
+
+@app.delete(f"{settings.api_v1_prefix}/github/disconnect", tags=["github"])
+def disconnect_github_account(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Disconnects and revokes GitHub credentials for the current user."""
+    svc = GitHubService(db)
+    ok = svc.disconnect_account(current_user.id)
+    return {"status": "disconnected" if ok else "not_connected"}
+
+
+@app.get(f"{settings.api_v1_prefix}/github/status", tags=["github"])
+def get_github_status(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Returns the current user's GitHub connection status and masked credentials."""
+    svc = GitHubService(db)
+    account = svc.get_account(current_user.id)
+    if not account:
+        return {"connected": False}
+    return {
+        "connected": True,
+        "github_username": account.github_username,
+        "account_type": account.account_type,
+        "scopes": account.scopes,
+        "created_at": account.created_at.isoformat() if account.created_at else None,
+    }
+
+
+@app.get(f"{settings.api_v1_prefix}/github/repositories", tags=["github"])
+async def list_github_repositories(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Lists authorized repositories available to the user on GitHub."""
+    svc = GitHubService(db)
+    try:
+        repos = await svc.list_user_repositories(current_user.id)
+        return repos
+    except GitHubClientError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch repositories: {str(exc)}")
+
+
+@app.post(f"{settings.api_v1_prefix}/github/repositories/import", tags=["github"])
+async def import_github_repository(
+    req: GitHubImportRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Imports a GitHub repository into an isolated user workspace."""
+    svc = GitHubService(db)
+    try:
+        repo = await svc.import_repository(user_id=current_user.id, full_name=req.full_name)
+        return repo.to_dict()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to import repository: {str(exc)}")
+
+
+@app.get(f"{settings.api_v1_prefix}/github/repositories/{{repo_id}}/pulls", tags=["github"])
+async def list_github_pull_requests(
+    repo_id: int,
+    state: str = "open",
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Fetches open pull requests for an imported repository."""
+    repo = db.query(models.Repository).filter_by(id=repo_id, user_id=current_user.id).first()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found or access denied")
+    if not repo.github_repo_full_name:
+        raise HTTPException(status_code=400, detail="Repository is not linked to GitHub")
+
+    owner, repo_name = repo.github_repo_full_name.split("/")
+    svc = GitHubService(db)
+    client = svc.get_client(current_user.id)
+    try:
+        pulls = await client.list_pull_requests(owner, repo_name, state=state)
+        return pulls
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch pull requests: {str(exc)}")
+
+
+@app.post(f"{settings.api_v1_prefix}/github/repositories/{{repo_id}}/pulls/{{pr_number}}/analyze", tags=["github"])
+async def analyze_github_pull_request(
+    repo_id: int,
+    pr_number: int,
+    req: PullRequestAnalyzeRequest = PullRequestAnalyzeRequest(),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Runs change blast radius analysis on an open pull request."""
+    svc = GitHubService(db)
+    if req.background:
+        job = BackgroundJobManager.create_job(
+            db=db,
+            user_id=current_user.id,
+            job_type="pr_analysis",
+            params={"repo_id": repo_id, "pr_number": pr_number, "post_comment": req.post_comment},
+        )
+        async def _run_task():
+            async_svc = GitHubService(db)
+            an = await async_svc.analyze_pull_request(
+                user_id=current_user.id,
+                repo_id=repo_id,
+                pr_number=pr_number,
+                post_comment=req.post_comment,
+            )
+            return an.to_dict()
+
+        BackgroundJobManager.run_async(job.id, _run_task)
+        return {"job_id": job.id, "status": "queued"}
+
+    try:
+        analysis = await svc.analyze_pull_request(
+            user_id=current_user.id,
+            repo_id=repo_id,
+            pr_number=pr_number,
+            post_comment=req.post_comment,
+        )
+        return analysis.to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pull request analysis failed: {str(exc)}")
+
+
+@app.post(f"{settings.api_v1_prefix}/github/repositories/{{repo_id}}/pulls/{{pr_number}}/comment", tags=["github"])
+async def post_github_pr_comment(
+    repo_id: int,
+    pr_number: int,
+    req: PullRequestCommentRequest = PullRequestCommentRequest(),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Posts or updates an analysis summary comment on a pull request."""
+    repo = db.query(models.Repository).filter_by(id=repo_id, user_id=current_user.id).first()
+    if not repo or not repo.github_repo_full_name:
+        raise HTTPException(status_code=404, detail="Repository not found or not connected to GitHub")
+
+    owner, repo_name = repo.github_repo_full_name.split("/")
+    svc = GitHubService(db)
+    client = svc.get_client(current_user.id)
+
+    # If body_markdown not explicitly provided, build from latest analysis of this PR
+    body_md = req.body_markdown
+    if not body_md:
+        latest_analysis = (
+            db.query(models.Analysis)
+            .filter_by(repository_id=repo_id, pr_number=pr_number, status="completed")
+            .order_by(models.Analysis.created_at.desc())
+            .first()
+        )
+        if not latest_analysis or not latest_analysis.report_json:
+            raise HTTPException(status_code=400, detail="No completed analysis exists for this PR. Run analysis first.")
+        rep_dict = json.loads(latest_analysis.report_json)
+        rep = ImpactAnalysisReport(**rep_dict)
+        body_md = format_pr_comment(rep, pr_number, latest_analysis.pr_title or f"PR #{pr_number}")
+
+    try:
+        res = await client.create_or_update_pr_comment(
+            owner=owner,
+            repo=repo_name,
+            pull_number=pr_number,
+            body_markdown=body_md,
+        )
+        return res
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to post comment: {str(exc)}")
+
+
+@app.post(f"{settings.api_v1_prefix}/github/webhook", tags=["github"])
+async def receive_github_webhook(
+    request: Request,
+    x_github_delivery: str = Header(..., alias="X-GitHub-Delivery"),
+    x_github_event: str = Header(..., alias="X-GitHub-Event"),
+    x_hub_signature_256: Optional[str] = Header(None, alias="X-Hub-Signature-256"),
+    db: Session = Depends(get_db),
+):
+    """Receives and processes incoming GitHub webhooks with HMAC-SHA256 signature verification."""
+    body_bytes = await request.body()
+    svc = GitHubService(db)
+    try:
+        res = await svc.handle_webhook(
+            delivery_id=x_github_delivery,
+            event_type=x_github_event,
+            payload_bytes=body_bytes,
+            signature_header=x_hub_signature_256,
+        )
+        return res
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Webhook processing error: {str(exc)}")
+
+
+# ---------------------------------------------------------------------------
+# Historical Change Intelligence Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(f"{settings.api_v1_prefix}/repositories/{{repo_id}}/historical/patterns", tags=["historical"])
+def get_historical_patterns(
+    repo_id: int,
+    limit: int = 50,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Returns recurring change patterns, hotspots, and historical risk trends for a repository."""
+    repo = db.query(models.Repository).filter_by(id=repo_id, user_id=current_user.id).first()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found or access denied")
+
+    hist_svc = HistoricalIntelligenceService(db)
+    return hist_svc.compute_change_patterns(repository_id=repo_id, user_id=current_user.id, limit=limit)
+
+
+@app.get(f"{settings.api_v1_prefix}/repositories/{{repo_id}}/historical/compare", tags=["historical"])
+def compare_historical_analyses(
+    repo_id: int,
+    analysis_a_id: int,
+    analysis_b_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Compares two historical analyses to discover blast radius progression and test drift."""
+    repo = db.query(models.Repository).filter_by(id=repo_id, user_id=current_user.id).first()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found or access denied")
+
+    hist_svc = HistoricalIntelligenceService(db)
+    try:
+        return hist_svc.compare_analyses(
+            analysis_id_a=analysis_a_id,
+            analysis_id_b=analysis_b_id,
+            user_id=current_user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Background Jobs Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(f"{settings.api_v1_prefix}/jobs/{{job_id}}", tags=["jobs"])
+def get_background_job_status(
+    job_id: str,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Checks the status and results of an asynchronous background job."""
+    job = (
+        db.query(models.BackgroundJob)
+        .filter_by(id=job_id, user_id=current_user.id)
+        .first()
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or access denied")
+    return job.to_dict()
+

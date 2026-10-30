@@ -27,6 +27,9 @@ import { AnalysisView } from './views/AnalysisView';
 import { DependenciesView } from './views/DependenciesView';
 import { TestsView } from './views/TestsView';
 import { ReportsView } from './views/ReportsView';
+import { PullRequestsView } from './views/PullRequestsView';
+import { HistoricalIntelligenceView } from './views/HistoricalIntelligenceView';
+import { SettingsView } from './views/SettingsView';
 import { ConnectRepoModal } from '../modals/ConnectRepoModal';
 import { CommandPalette } from '../modals/CommandPalette';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -43,7 +46,17 @@ export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
       const saved = localStorage.getItem('changeradar_ws_page');
       if (
         saved &&
-        ['overview', 'repositories', 'analysis', 'dependencies', 'tests', 'reports'].includes(saved)
+        [
+          'overview',
+          'repositories',
+          'pull-requests',
+          'analysis',
+          'historical',
+          'dependencies',
+          'tests',
+          'reports',
+          'settings',
+        ].includes(saved)
       ) {
         return saved as PageId;
       }
@@ -240,6 +253,18 @@ export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
       title: 'Risk & Audit Reports',
       subtitle: 'Traceable, reproducible change impact assessments tied to immutable commit SHAs.',
     },
+    'pull-requests': {
+      title: 'Pull Requests & Automated Reviews',
+      subtitle: 'Inspect PR blast radius, examine downstream affected callers, and publish executive PR comments.',
+    },
+    historical: {
+      title: 'Historical Change Intelligence',
+      subtitle: 'Evidence-based hotspots, recurring call-graph paths, and snapshot comparative intelligence.',
+    },
+    settings: {
+      title: 'Platform Settings & Integrations',
+      subtitle: 'Configure GitHub credentials, automated webhooks, and inspect engine deployment security.',
+    },
   };
 
   const { title, subtitle } = pageHeadings[page];
@@ -319,6 +344,14 @@ export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
             />
           )}
 
+          {page === 'pull-requests' && (
+            <PullRequestsView
+              repositories={repositories}
+              onSelectReport={setReport}
+              onNavigate={setPage}
+            />
+          )}
+
           {page === 'analysis' && (
             <AnalysisView
               report={report}
@@ -329,6 +362,13 @@ export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
               onCustomAnalyze={handleCustomAnalysis}
               isAnalyzing={isAnalyzing}
               error={analysisError}
+            />
+          )}
+
+          {page === 'historical' && (
+            <HistoricalIntelligenceView
+              repositories={repositories}
+              analyses={analyses}
             />
           )}
 
@@ -357,12 +397,14 @@ export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
               isLoading={isAnalyzing}
             />
           )}
+
+          {page === 'settings' && <SettingsView />}
         </div>
 
         <footer className="workspace-footer">
           <div className="workspace-footer-left">
             <span>
-              CHANGE RADAR <b>FOUNDATION v0.1.1</b>
+              CHANGE RADAR <b>CONNECTED v1.0.0</b>
             </span>
             <span className="footer-dot-sep">&bull;</span>
             <span>

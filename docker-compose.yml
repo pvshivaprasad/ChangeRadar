@@ -1,32 +1,98 @@
+version: '3.8'
+
 services:
-  db:
+  # ---------------------------------------------------------------------------
+  # Database: PostgreSQL 16
+  # ---------------------------------------------------------------------------
+  postgres:
     image: postgres:16-alpine
-    container_name: changeradar-db
+    container_name: changeradar-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: changeradar
-      POSTGRES_USER: changeradar
-      POSTGRES_PASSWORD: changeradar
+      POSTGRES_DB: ${POSTGRES_DB:-changeradar}
+      POSTGRES_USER: ${POSTGRES_USER:-changeradar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeradar_secure_password_replace_in_prod}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - changeradar_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U changeradar -d changeradar"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-changeradar} -d ${POSTGRES_DB:-changeradar}"]
+      interval: 10s
       timeout: 5s
-      retries: 10
-  api:
-    build: ./backend
-    container_name: changeradar-api
+      retries: 5
+      start_period: 5s
+    networks:
+      - changeradar_net
+
+  # ---------------------------------------------------------------------------
+  # Backend API & Analysis Engine
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: changeradar-backend
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+psycopg://changeradar:changeradar@db:5432/changeradar
-      FRONTEND_ORIGIN: http://localhost:5173
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-changeradar}:${POSTGRES_PASSWORD:-changeradar_secure_password_replace_in_prod}@postgres:5432/${POSTGRES_DB:-changeradar}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-CHANGERADAR_PROD_FERNET_KEY_CHANGE_ME_IN_ENV_}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:80,http://localhost:5173}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      REPO_STORAGE_DIR: /app/storage/repositories
+      BACKGROUND_WORKER_CONCURRENCY: ${BACKGROUND_WORKER_CONCURRENCY:-4}
+      ANALYSIS_ENGINE_VERSION: "1.0.0"
     ports:
       - "8000:8000"
+    volumes:
+      - changeradar_repo_storage:/app/storage/repositories
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - changeradar_net
+
+  # ---------------------------------------------------------------------------
+  # Frontend UI & Nginx Reverse Proxy
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: changeradar-frontend
+    restart: unless-stopped
     depends_on:
-      db:
+      backend:
         condition: service_healthy
+    ports:
+      - "80:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - changeradar_net
+
 volumes:
   changeradar_postgres:
+    name: changeradar_postgres_data
+  changeradar_repo_storage:
+    name: changeradar_repo_storage_data
+
+networks:
+  changeradar_net:
+    name: changeradar_network
+    driver: bridge

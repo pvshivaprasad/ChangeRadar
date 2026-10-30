@@ -82,11 +82,34 @@ def init_db() -> bool:
         # Ensure any newly added columns exist in existing SQLite databases
         try:
             with engine.connect() as conn:
+                # 1. Repositories table columns
                 res = conn.execute(text("PRAGMA table_info(repositories)")).fetchall()
                 cols = [r[1] for r in res]
-                if cols and "repo_type" not in cols:
-                    conn.execute(text("ALTER TABLE repositories ADD COLUMN repo_type VARCHAR(50) DEFAULT 'local'"))
-                    conn.commit()
+                if cols:
+                    if "repo_type" not in cols:
+                        conn.execute(text("ALTER TABLE repositories ADD COLUMN repo_type VARCHAR(50) DEFAULT 'local'"))
+                    if "github_repo_full_name" not in cols:
+                        conn.execute(text("ALTER TABLE repositories ADD COLUMN github_repo_full_name VARCHAR(255)"))
+                    if "github_clone_url" not in cols:
+                        conn.execute(text("ALTER TABLE repositories ADD COLUMN github_clone_url VARCHAR(1024)"))
+                    if "is_private" not in cols:
+                        conn.execute(text("ALTER TABLE repositories ADD COLUMN is_private BOOLEAN DEFAULT 0"))
+
+                # 2. Analyses table columns
+                res_a = conn.execute(text("PRAGMA table_info(analyses)")).fetchall()
+                cols_a = [r[1] for r in res_a]
+                if cols_a:
+                    if "pr_number" not in cols_a:
+                        conn.execute(text("ALTER TABLE analyses ADD COLUMN pr_number INTEGER"))
+                    if "pr_title" not in cols_a:
+                        conn.execute(text("ALTER TABLE analyses ADD COLUMN pr_title VARCHAR(512)"))
+                    if "is_github_pr" not in cols_a:
+                        conn.execute(text("ALTER TABLE analyses ADD COLUMN is_github_pr BOOLEAN DEFAULT 0"))
+                    if "github_comment_id" not in cols_a:
+                        conn.execute(text("ALTER TABLE analyses ADD COLUMN github_comment_id VARCHAR(100)"))
+                    if "analysis_engine_version" not in cols_a:
+                        conn.execute(text("ALTER TABLE analyses ADD COLUMN analysis_engine_version VARCHAR(50) DEFAULT '1.0.0'"))
+                conn.commit()
         except Exception:
             pass
 
@@ -141,6 +164,12 @@ def init_db() -> bool:
                     )
                     db.add(dev_session)
                     db.commit()
+
+            try:
+                from .jobs.manager import BackgroundJobManager
+                BackgroundJobManager.reconcile_dangling_jobs_on_startup(db)
+            except Exception:
+                pass
         finally:
             db.close()
         return True

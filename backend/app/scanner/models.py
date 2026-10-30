@@ -74,6 +74,7 @@ class ImpactedSymbol(BaseModel):
 
 
 class TestRecommendation(BaseModel):
+    __test__ = False
     test_file: str
     test_symbol_id: Optional[str] = None
     target_symbol_id: str

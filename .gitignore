@@ -1,15 +1,39 @@
+# Dependencies
 node_modules/
 dist/
+
+# Python Virtual Environments & Caches
 .venv/
+venv/
+env/
+ENV/
 __pycache__/
 *.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Environment Variables & Secrets
 .env
+.env.*
+!.env.example
+!.env.production.example
+
+# Databases & Storage
 *.db
 *.sqlite
 *.sqlite3
+storage/
+
+# IDE & OS
 .DS_Store
+Thumbs.db
 .vscode/
 .idea/
-.pytest_cache/
+
+# Test Fixtures & Temporary Repositories
 backend/tests/fixtures/synthetic_repo/
 backend/tests/fixtures/synthetic_repo/.git/
+chrome_audit_*

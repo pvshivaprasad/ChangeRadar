@@ -1,0 +1,64 @@
+# ==============================================================================
+# ChangeRadar 1.0 — Production Backend Dockerfile
+# Multi-stage, secure non-root user, healthcheck, and Git support
+# ==============================================================================
+
+# --- Stage 1: Build & Dependencies ---
+FROM python:3.13-slim AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir --user psycopg2-binary cryptography alembic uvicorn
+
+# --- Stage 2: Minimal Production Runtime ---
+FROM python:3.13-slim AS runtime
+
+WORKDIR /app
+
+# Install runtime dependencies: git is required for AST diffing and cloning; libpq5 for PostgreSQL
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create dedicated non-root application user
+RUN groupadd -g 10001 changeradar && \
+    useradd -u 10001 -g changeradar -m -s /bin/bash changeradar
+
+# Copy Python packages from builder
+COPY --from=builder /root/.local /home/changeradar/.local
+
+# Set environment paths
+ENV PATH="/home/changeradar/.local/bin:$PATH"
+ENV PYTHONPATH="/app"
+ENV PYTHONUNBUFFERED=1
+ENV ENVIRONMENT=production
+
+# Copy application code and Alembic migrations
+COPY --chown=changeradar:changeradar backend/app /app/app
+COPY --chown=changeradar:changeradar backend/alembic /app/alembic
+COPY --chown=changeradar:changeradar backend/alembic.ini /app/alembic.ini
+
+# Create repositories storage directory with appropriate permissions
+RUN mkdir -p /app/storage/repositories && \
+    chown -R changeradar:changeradar /app/storage
+
+# Switch to non-root user
+USER changeradar
+
+EXPOSE 8000
+
+# Container liveness healthcheck
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Production startup: run DB migrations, then start uvicorn with proxy headers
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]

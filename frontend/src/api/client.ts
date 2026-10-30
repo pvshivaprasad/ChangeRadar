@@ -1,6 +1,12 @@
 import {
   AnalysisRecord,
   AuthSession,
+  BackgroundJobStatus,
+  GitHubAccountStatus,
+  GitHubPullRequest,
+  GitHubRepoItem,
+  HistoricalComparisonResult,
+  HistoricalPatternsReport,
   ImpactAnalysisReport,
   RepositoryRecord,
   ScanSummary,
@@ -376,3 +382,187 @@ export async function scanRepository(repoPath: string): Promise<ScanSummary> {
   }
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// GitHub Integration API Methods (Phase 1)
+// ---------------------------------------------------------------------------
+
+export async function fetchGitHubStatus(): Promise<GitHubAccountStatus> {
+  const res = await fetch(`${API_BASE}/api/v1/github/status`, {
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch GitHub status: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function connectGitHubAccount(
+  accessToken: string,
+  accountType: string = 'pat',
+  scopes: string = 'repo,read:user',
+): Promise<GitHubAccountStatus> {
+  const res = await fetch(`${API_BASE}/api/v1/github/connect`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      access_token: accessToken,
+      account_type: accountType,
+      scopes: scopes,
+    }),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to connect GitHub account`);
+  }
+  return res.json();
+}
+
+export async function disconnectGitHubAccount(): Promise<{ status: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/github/disconnect`, {
+    method: 'POST',
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to disconnect GitHub account`);
+  }
+  return res.json();
+}
+
+export async function fetchGitHubRepositories(): Promise<GitHubRepoItem[]> {
+  const res = await fetch(`${API_BASE}/api/v1/github/repositories`, {
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to list GitHub repositories`);
+  }
+  return res.json();
+}
+
+export async function importGitHubRepository(fullName: string): Promise<RepositoryRecord> {
+  const res = await fetch(`${API_BASE}/api/v1/github/repositories/import`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ full_name: fullName }),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to import GitHub repository`);
+  }
+  return res.json();
+}
+
+export async function fetchPullRequests(
+  repoId: number,
+  state: 'open' | 'closed' = 'open',
+): Promise<GitHubPullRequest[]> {
+  const res = await fetch(`${API_BASE}/api/v1/github/repositories/${repoId}/pulls?state=${state}`, {
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to fetch pull requests`);
+  }
+  return res.json();
+}
+
+export async function analyzePullRequest(
+  repoId: number,
+  prNumber: number,
+  postComment: boolean = false,
+  background: boolean = false,
+): Promise<{ status: string; analysis?: AnalysisRecord; job_id?: string; report?: ImpactAnalysisReport }> {
+  const res = await fetch(`${API_BASE}/api/v1/github/repositories/${repoId}/pulls/${prNumber}/analyze`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      post_comment: postComment,
+      background: background,
+    }),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to analyze pull request #${prNumber}`);
+  }
+  return res.json();
+}
+
+export async function publishPullRequestComment(
+  repoId: number,
+  prNumber: number,
+): Promise<{ status: string; comment_id: string; html_url?: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/github/repositories/${repoId}/pulls/${prNumber}/comment`, {
+    method: 'POST',
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to post PR comment`);
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Historical Change Intelligence API Methods (Phase 2)
+// ---------------------------------------------------------------------------
+
+export async function fetchHistoricalPatterns(
+  repoId: number,
+  limit: number = 50,
+): Promise<HistoricalPatternsReport> {
+  const res = await fetch(`${API_BASE}/api/v1/repositories/${repoId}/historical/patterns?limit=${limit}`, {
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to fetch historical change patterns`);
+  }
+  return res.json();
+}
+
+export async function compareHistoricalAnalyses(
+  repoId: number,
+  analysisIdA: number,
+  analysisIdB: number,
+): Promise<HistoricalComparisonResult> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/repositories/${repoId}/historical/compare?analysis_id_a=${analysisIdA}&analysis_id_b=${analysisIdB}`,
+    {
+      headers: authHeaders(),
+      credentials: 'include',
+    },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to compare historical analyses`);
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Background Jobs API Methods (Phase 3)
+// ---------------------------------------------------------------------------
+
+export async function fetchJobStatus(jobId: string): Promise<BackgroundJobStatus> {
+  const res = await fetch(`${API_BASE}/api/v1/jobs/${jobId}`, {
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to fetch job status`);
+  }
+  return res.json();
+}
+

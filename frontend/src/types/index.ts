@@ -3,10 +3,13 @@ import { LucideIcon } from 'lucide-react';
 export type PageId =
   | 'overview'
   | 'repositories'
+  | 'pull-requests'
   | 'analysis'
+  | 'historical'
   | 'dependencies'
   | 'tests'
-  | 'reports';
+  | 'reports'
+  | 'settings';
 
 export interface NavItem {
   id: PageId;
@@ -144,6 +147,11 @@ export interface AnalysisRecord {
   repo_path?: string;
   base_commit: string;
   head_commit: string;
+  pr_number?: number | null;
+  pr_title?: string | null;
+  is_github_pr?: boolean;
+  github_comment_id?: string | null;
+  analysis_engine_version?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   risk_level: 'low' | 'medium' | 'elevated' | 'high' | 'pending' | 'failed' | string;
   risk_score: number;
@@ -156,4 +164,129 @@ export interface AnalysisRecord {
   created_at?: string | null;
   report?: ImpactAnalysisReport | null;
 }
+
+// Phase 1: GitHub Integration Interfaces
+export interface GitHubAccountStatus {
+  is_connected: boolean;
+  account_type?: string;
+  username?: string;
+  masked_token?: string;
+  scopes?: string;
+  avatar_url?: string;
+  connected_at?: string;
+}
+
+export interface GitHubRepoItem {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  html_url: string;
+  default_branch: string;
+  updated_at?: string;
+  is_imported?: boolean;
+  local_repo_id?: number;
+}
+
+export interface GitHubPullRequest {
+  number: number;
+  title: string;
+  state: 'open' | 'closed';
+  html_url: string;
+  base_ref: string;
+  base_sha: string;
+  head_ref: string;
+  head_sha: string;
+  author: string;
+  updated_at: string;
+  latest_analysis?: AnalysisRecord | null;
+}
+
+// Phase 2: Historical Change Intelligence Interfaces
+export interface HistoricalModifiedModule {
+  file_path: string;
+  change_count: number;
+  percentage: number;
+}
+
+export interface HistoricalImpactedComponent {
+  symbol_id: string;
+  impact_count: number;
+  percentage: number;
+}
+
+export interface HistoricalRecurringPath {
+  path: string;
+  frequency: number;
+}
+
+export interface HistoricalHotspot {
+  file_path: string;
+  high_risk_occurrences: number;
+  total_changes: number;
+}
+
+export interface HistoricalRecommendedTest {
+  test: string;
+  recommendation_count: number;
+  percentage: number;
+}
+
+export interface HistoricalRiskTrendItem {
+  analysis_id: number;
+  commit: string;
+  risk_score: number;
+  risk_level: string;
+  changed_symbols: number;
+  impacted_symbols: number;
+  created_at: string | null;
+}
+
+export interface HistoricalPatternsReport {
+  repository_id: number;
+  total_analyses: number;
+  message?: string;
+  frequently_modified_modules: HistoricalModifiedModule[];
+  frequently_impacted_components: HistoricalImpactedComponent[];
+  recurring_paths: HistoricalRecurringPath[];
+  hotspots: HistoricalHotspot[];
+  repeatedly_recommended_tests: HistoricalRecommendedTest[];
+  risk_trend: HistoricalRiskTrendItem[];
+}
+
+export interface HistoricalAnalysisSummary {
+  id: number;
+  commit: string;
+  created_at: string | null;
+  risk_score: number;
+  risk_level: string;
+  changed_count: number;
+  impacted_count: number;
+}
+
+export interface HistoricalComparisonResult {
+  analysis_a: HistoricalAnalysisSummary;
+  analysis_b: HistoricalAnalysisSummary;
+  risk_score_delta: number;
+  impacted_count_delta: number;
+  newly_impacted_symbols: string[];
+  resolved_impacted_symbols: string[];
+  common_impacted_symbols: string[];
+  newly_recommended_tests: string[];
+  retained_tests: string[];
+}
+
+// Phase 3: Background Jobs Interface
+export interface BackgroundJobStatus {
+  id: string;
+  job_type: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  progress_percent: number;
+  created_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  error_message?: string | null;
+  result?: any;
+}
+
 

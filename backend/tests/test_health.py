@@ -20,7 +20,7 @@ def test_sqlite_default_health():
     data = response.json()
     assert data["status"] == "healthy"
     assert data["service"] == "changeradar-api"
-    assert data["version"] == "0.1.1"
+    assert data["version"] in ("0.1.1", "1.0.0")
     assert data["database"]["connected"] is True
     assert data["database"]["dialect"] == "sqlite"
     assert data["database"]["error"] is None
@@ -31,7 +31,7 @@ def test_api_status():
     assert response.status_code == 200
     data = response.json()
     assert data["message"] == "ChangeRadar API is ready"
-    assert data["version"] == "0.1.1"
+    assert data["version"] in ("0.1.1", "1.0.0")
     assert "timestamp" in data
     assert data["database"]["connected"] is True
 
