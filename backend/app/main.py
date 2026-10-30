@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import os
+import re
 from typing import Any, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -103,14 +104,63 @@ def api_status() -> StatusResponse:
     )
 
 
+def validate_safe_repo_path(repo_path: str) -> str:
+    """
+    Validates that repo_path is a legitimate, accessible directory
+    and prevents directory traversal or unauthorized access to system root paths.
+    """
+    if not repo_path or not repo_path.strip():
+        raise HTTPException(status_code=400, detail="Repository path cannot be empty.")
+
+    try:
+        resolved = os.path.abspath(os.path.realpath(repo_path.strip()))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid path format: {exc}")
+
+    if not os.path.isdir(resolved):
+        raise HTTPException(status_code=400, detail=f"Directory does not exist or is not accessible: {repo_path}")
+
+    norm = resolved.replace("\\", "/").rstrip("/").lower()
+
+    # Block drive root directories directly (e.g. "c:", "d:")
+    if re.match(r"^[a-z]:$", norm) or norm == "":
+        raise HTTPException(status_code=403, detail="Scanning drive root directly is forbidden for security.")
+
+    # Block protected system folders
+    forbidden_prefixes = [
+        "c:/windows",
+        "c:/winnt",
+        "c:/program files",
+        "c:/program files (x86)",
+        "c:/system volume information",
+        "c:/recovery",
+        "/etc",
+        "/sys",
+        "/proc",
+        "/dev",
+        "/boot",
+        "/root",
+        "/usr",
+        "/bin",
+        "/sbin",
+        "/var",
+    ]
+    for forbidden in forbidden_prefixes:
+        if norm == forbidden or norm.startswith(forbidden + "/"):
+            raise HTTPException(status_code=403, detail=f"Access to protected system path '{norm}' is forbidden.")
+
+    return resolved
+
+
 @app.post(f"{settings.api_v1_prefix}/scan", response_model=ScanSummary, tags=["intelligence"])
 def scan_repository(req: ScanRequest) -> ScanSummary:
     """Scans local Python repository for AST symbols and dependency edges."""
-    if not os.path.isdir(req.repo_path):
-        raise HTTPException(status_code=400, detail=f"Directory does not exist: {req.repo_path}")
+    safe_path = validate_safe_repo_path(req.repo_path)
     try:
-        scanner = RepositoryScanner(req.repo_path)
+        scanner = RepositoryScanner(safe_path)
         return scanner.scan()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Scan error: {str(exc)}")
 
@@ -118,14 +168,17 @@ def scan_repository(req: ScanRequest) -> ScanSummary:
 @app.post(f"{settings.api_v1_prefix}/analyze", response_model=ImpactAnalysisReport, tags=["intelligence"])
 def analyze_change(req: AnalyzeRequest) -> ImpactAnalysisReport:
     """Executes full change impact analysis between two commit revisions."""
-    if not os.path.isdir(req.repo_path):
-        raise HTTPException(status_code=400, detail=f"Directory does not exist: {req.repo_path}")
+    safe_path = validate_safe_repo_path(req.repo_path)
     try:
         return run_impact_analysis(
-            repo_path=req.repo_path,
+            repo_path=safe_path,
             base_commit=req.base_commit,
             head_commit=req.head_commit,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Analysis error: {str(exc)}")
 

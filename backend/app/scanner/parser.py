@@ -43,8 +43,8 @@ class PythonASTParser:
     def parse(self) -> Tuple[List[Symbol], List[DependencyEdge]]:
         try:
             tree = ast.parse(self.source_code, filename=self.rel_path)
-        except SyntaxError:
-            # If a file has syntax errors, return empty list gracefully without crashing
+        except (SyntaxError, ValueError, TypeError):
+            # If a file has syntax errors, null bytes, or malformed AST, return empty lists gracefully
             return self.symbols, self.edges
 
         # 1. Module level symbol
