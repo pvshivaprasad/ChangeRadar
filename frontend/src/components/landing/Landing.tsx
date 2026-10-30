@@ -7,12 +7,13 @@ import { LandingFooter } from './LandingFooter';
 interface LandingProps {
   onLaunch: () => void;
   onSignIn: () => void;
+  onHome?: () => void;
 }
 
-export function Landing({ onLaunch, onSignIn }: LandingProps) {
+export function Landing({ onLaunch, onSignIn, onHome }: LandingProps) {
   return (
     <div className="landing">
-      <LandingNav onLaunch={onLaunch} onSignIn={onSignIn} />
+      <LandingNav onLaunch={onLaunch} onSignIn={onSignIn} onHome={onHome} />
       <main>
         <Hero onLaunch={onLaunch} />
         <FeatureGrid />

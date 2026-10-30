@@ -71,3 +71,31 @@ def check_database_connection() -> dict[str, Any]:
             "url": masked_url,
             "error": f"Connection check failed ({exc.__class__.__name__})",
         }
+
+
+def init_db() -> bool:
+    """Creates database tables and seeds initial local development account if needed."""
+    try:
+        from . import models  # noqa: F401
+        Base.metadata.create_all(bind=engine)
+
+        # Seed default development user if not present
+        db = SessionLocal()
+        try:
+            user = db.query(models.User).filter_by(email="dev@changeradar.io").first()
+            if not user:
+                dev_user = models.User(
+                    email="dev@changeradar.io",
+                    name="Lead Engineer",
+                    hashed_password=models.hash_password("changeradar2026"),
+                    api_token="dev-token-lead-engineer",
+                )
+                db.add(dev_user)
+                db.commit()
+        finally:
+            db.close()
+        return True
+    except Exception as exc:
+        logger.error("Failed to initialize database tables: %s", exc)
+        return False
+

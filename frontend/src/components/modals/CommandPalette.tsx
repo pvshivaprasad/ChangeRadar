@@ -109,7 +109,7 @@ export function CommandPalette({
       },
       {
         id: 'act-connect',
-        title: 'Connect GitHub Repository',
+        title: 'Import Local Repository',
         category: 'Actions',
         icon: Plus,
         run: () => {

@@ -156,10 +156,23 @@ Open [http://localhost:5173/](http://localhost:5173/) in your browser.
 |---|---|---|
 | `GET` | `/health` | Service status, environment, and masked database connection diagnostics. |
 | `GET` | `/api/v1/status` | API operational readiness check. |
+| `POST` | `/api/v1/auth/register` | Registers a new user with PBKDF2-hashed password. |
+| `POST` | `/api/v1/auth/login` | Authenticates user credentials and issues a secure Bearer token. |
+| `GET` | `/api/v1/auth/me` | Returns profile of the currently authenticated session. |
+| `GET` | `/api/v1/repositories` | Lists all persisted repositories in the local database. |
+| `POST` | `/api/v1/repositories` | Imports, scans, and persists a local repository to SQLite/PostgreSQL. |
+| `DELETE`| `/api/v1/repositories/{id}` | Removes a repository and cascades deletion to associated records. |
+| `GET` | `/api/v1/repositories/{id}/analyses` | Lists historical change analyses for a specific repository. |
+| `GET` | `/api/v1/analyses` | Lists all historical change impact analyses across repositories. |
 | `POST` | `/api/v1/scan` | Scans a local repository directory, returning all AST symbols and dependency edges. |
 | `POST` | `/api/v1/analyze` | Executes change impact analysis between `base_commit` and `head_commit`. |
 | `GET` | `/api/v1/sample/scan` | Returns scanned symbols and call graph for the verified synthetic test fixture. |
 | `GET` | `/api/v1/sample/run` | Executes live end-to-end impact analysis on the verified synthetic test fixture. |
+
+### Default Development Credentials
+- **Email**: `dev@changeradar.io`
+- **Password**: `changeradar2026`
+- **Demo Mode**: Quick-fill button available on the Sign-In interface.
 
 ---
 
@@ -174,8 +187,9 @@ python -m pytest pytest.ini tests -v
 ```
 
 **Results:**
-- **30 Total Tests**: **29 passed**, 1 skipped (OS symlink privilege check on Windows).
+- **32 Total Tests**: **31 passed**, 1 skipped (OS symlink privilege check on Windows).
 - **Test Modules**:
+  - `test_auth_and_db.py`: PBKDF2 password hashing, token validation, 401 on bad credentials, and persistent SQLite/PostgreSQL storage.
   - `test_ast_parser.py`: Class, method, function extraction, docstrings, and call edges.
   - `test_scanner.py`: Local repository traversal, commit detection, and edge normalization.
   - `test_git_diff_cases.py`: Added, deleted, renamed files, multiple hunks, and empty diffs.

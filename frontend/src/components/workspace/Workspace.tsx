@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import {
+  AnalysisRecord,
   ImpactAnalysisReport,
   PageId,
+  RepositoryRecord,
   ScanSummary,
+  User,
 } from '../../types';
 import {
   analyzeRepository,
+  deleteRepository,
+  fetchAllAnalyses,
+  fetchRepositories,
   fetchSampleAnalysis,
   fetchSampleScan,
   scanRepository,
@@ -25,31 +31,45 @@ import { StatusBadge } from '../ui/StatusBadge';
 
 interface WorkspaceProps {
   onHome: () => void;
-  onAuth: () => void;
+  onLogout?: () => void;
+  currentUser?: User | null;
 }
 
-export function Workspace({ onHome, onAuth }: WorkspaceProps) {
+export function Workspace({ onHome, onLogout, currentUser }: WorkspaceProps) {
   const [page, setPage] = useState<PageId>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showConnect, setShowConnect] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
 
   // Real Repository Intelligence States
+  const [repositories, setRepositories] = useState<RepositoryRecord[]>([]);
+  const [analyses, setAnalyses] = useState<AnalysisRecord[]>([]);
   const [report, setReport] = useState<ImpactAnalysisReport | null>(null);
   const [scan, setScan] = useState<ScanSummary | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-  // Automatically fetch initial sample scan on first workspace entry
+  // Automatically fetch initial sample scan & persisted repositories on first workspace entry
   useEffect(() => {
     let mounted = true;
+    fetchRepositories()
+      .then((repos) => {
+        if (mounted) setRepositories(repos);
+      })
+      .catch(() => {});
+
+    fetchAllAnalyses()
+      .then((records) => {
+        if (mounted) setAnalyses(records);
+      })
+      .catch(() => {});
+
     fetchSampleScan()
       .then((data) => {
         if (mounted) setScan(data);
       })
-      .catch(() => {
-        // Backend offline or starting up
-      });
+      .catch(() => {});
+
     return () => {
       mounted = false;
     };
@@ -67,17 +87,36 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const handleImportSuccess = (newRepo: RepositoryRecord) => {
+    setRepositories((prev) => [newRepo, ...prev.filter((r) => r.id !== newRepo.id)]);
+    fetchSampleScan().then(setScan).catch(() => {});
+  };
+
+  const handleDeleteRepo = async (id: number) => {
+    try {
+      await deleteRepository(id);
+      setRepositories((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      console.error('Failed to delete repository', err);
+    }
+  };
+
+  const handleAnalyzeRepo = async (repo: RepositoryRecord) => {
+    setPage('analysis');
+    handleCustomAnalysis(repo.path, 'HEAD~1', 'HEAD');
+  };
+
   const handleRunSampleAnalysis = async () => {
     setIsAnalyzing(true);
     setAnalysisError(null);
     try {
       const data = await fetchSampleAnalysis();
       setReport(data);
-      // Also update scan summary if not present
       if (!scan) {
         const scanData = await fetchSampleScan();
         setScan(scanData);
       }
+      fetchAllAnalyses().then(setAnalyses).catch(() => {});
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Analysis failed';
       setAnalysisError(msg);
@@ -98,6 +137,7 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
       setReport(data);
       const scanData = await scanRepository(customPath);
       setScan(scanData);
+      fetchAllAnalyses().then(setAnalyses).catch(() => {});
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Custom analysis failed';
       setAnalysisError(msg);
@@ -159,7 +199,8 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onHome={onHome}
-        onAuth={onAuth}
+        onLogout={onLogout}
+        currentUser={currentUser}
       />
 
       <main className="workspace-main">
@@ -167,7 +208,8 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
           pageLabel={activeItem.label}
           onOpenSidebar={() => setSidebarOpen(true)}
           onOpenCommandPalette={() => setShowCommandPalette(true)}
-          onAuth={onAuth}
+          onLogout={onLogout}
+          currentUser={currentUser}
         />
 
         <div className="page-content">
@@ -205,6 +247,8 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
           {page === 'overview' && (
             <OverviewView
               report={report}
+              repositoriesCount={repositories.length}
+              analysesCount={analyses.length}
               onConnectRepo={() => setShowConnect(true)}
               onNavigate={setPage}
               onRunSample={handleRunSampleAnalysis}
@@ -213,7 +257,13 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
           )}
 
           {page === 'repositories' && (
-            <RepositoriesView onConnect={() => setShowConnect(true)} />
+            <RepositoriesView
+              repositories={repositories}
+              onConnect={() => setShowConnect(true)}
+              onAnalyzeRepo={handleAnalyzeRepo}
+              onDeleteRepo={handleDeleteRepo}
+              isLoading={isAnalyzing}
+            />
           )}
 
           {page === 'analysis' && (
@@ -246,6 +296,7 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
           {page === 'reports' && (
             <ReportsView
               report={report}
+              analyses={analyses}
               onRunSample={handleRunSampleAnalysis}
               isLoading={isAnalyzing}
             />
@@ -269,6 +320,7 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
       <ConnectRepoModal
         isOpen={showConnect}
         onClose={() => setShowConnect(false)}
+        onImportSuccess={handleImportSuccess}
       />
 
       <CommandPalette

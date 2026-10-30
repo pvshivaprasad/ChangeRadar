@@ -18,13 +18,17 @@ import {
 } from 'lucide-react';
 import { Brand } from '../ui/Brand';
 
+import { loginUser, registerUser, setAuthToken } from '../../api/client';
+import { User } from '../../types';
+
 interface AuthPageProps {
-  onSuccess: () => void;
+  onSuccess: (user: User) => void;
   onBack: () => void;
   initialMode?: 'signin' | 'signup';
+  initialNotice?: string;
 }
 
-export function AuthPage({ onSuccess, onBack, initialMode = 'signin' }: AuthPageProps) {
+export function AuthPage({ onSuccess, onBack, initialMode = 'signin', initialNotice }: AuthPageProps) {
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,30 +36,61 @@ export function AuthPage({ onSuccess, onBack, initialMode = 'signin' }: AuthPage
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [notice, setNotice] = useState<{ type: 'info' | 'error'; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ type: 'info' | 'error'; text: string } | null>(
+    initialNotice ? { type: 'info', text: initialNotice } : null
+  );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fillDevCredentials = () => {
+    setEmail('dev@changeradar.io');
+    setPassword('changeradar2026');
+    setNotice({ type: 'info', text: 'Loaded local developer credentials (dev@changeradar.io).' });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setNotice(null);
 
-    if (!email.trim() || !password.trim()) {
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
       setNotice({ type: 'error', text: 'Please enter both your work email and password.' });
       return;
     }
 
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setNotice({ type: 'error', text: 'Please enter a valid work email address.' });
+      return;
+    }
+
+    if (cleanPassword.length < 6) {
+      setNotice({ type: 'error', text: 'Password must be at least 6 characters long.' });
+      return;
+    }
+
     if (mode === 'signup' && !name.trim()) {
-      setNotice({ type: 'error', text: 'Please enter your name to create an account.' });
+      setNotice({ type: 'error', text: 'Please enter your full name to create an account.' });
       return;
     }
 
     setIsLoading(true);
 
-    // Provide authentic interaction feedback without pretending a real auth backend exists yet
-    setTimeout(() => {
+    try {
+      if (mode === 'signin') {
+        const session = await loginUser(cleanEmail, cleanPassword);
+        setAuthToken(session.token, rememberMe);
+        onSuccess(session.user);
+      } else {
+        const session = await registerUser(name.trim(), cleanEmail, cleanPassword);
+        setAuthToken(session.token, rememberMe);
+        onSuccess(session.user);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Authentication failed. Please try again.';
+      setNotice({ type: 'error', text: msg });
+    } finally {
       setIsLoading(false);
-      // Log in as workspace preview user
-      onSuccess();
-    }, 600);
+    }
   };
 
   const handleOAuthClick = (provider: string) => {
@@ -293,15 +328,23 @@ export function AuthPage({ onSuccess, onBack, initialMode = 'signin' }: AuthPage
             </div>
 
             {mode === 'signin' && (
-              <div className="checkbox-row">
+              <div className="checkbox-row" style={{ justifyContent: 'space-between' }}>
                 <label className="checkbox-label">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                   />
-                  <span>Remember this device for 30 days</span>
+                  <span>Remember this device</span>
                 </label>
+                <button
+                  type="button"
+                  onClick={fillDevCredentials}
+                  style={{ fontSize: '12px', color: 'var(--lime)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', fontWeight: 600 }}
+                  title="Auto-fill dev@changeradar.io / changeradar2026"
+                >
+                  Auto-fill demo user
+                </button>
               </div>
             )}
 

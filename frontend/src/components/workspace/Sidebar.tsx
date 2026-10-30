@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { Brand } from '../ui/Brand';
-import { NavItem, PageId } from '../../types';
+import { NavItem, PageId, User } from '../../types';
 
 export const navItems: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -30,7 +30,9 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onHome: () => void;
-  onAuth: () => void;
+  onAuth?: () => void;
+  onLogout?: () => void;
+  currentUser?: User | null;
 }
 
 export function Sidebar({
@@ -40,6 +42,8 @@ export function Sidebar({
   onClose,
   onHome,
   onAuth,
+  onLogout,
+  currentUser,
 }: SidebarProps) {
   return (
     <>
@@ -121,14 +125,30 @@ export function Sidebar({
           </a>
 
           <div className="sidebar-user-card">
-            <button className="profile-button" type="button" onClick={onAuth}>
-              <span className="profile-avatar">CR</span>
-              <span className="profile-info">
-                <b>Lead Engineer</b>
-                <small>Shiva Prasad · Workspace Admin</small>
+            <div className="profile-button" style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '10px 12px' }}>
+              <span className="profile-avatar">
+                {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'CR'}
               </span>
-              <Settings2 size={16} />
-            </button>
+              <span className="profile-info" style={{ flex: 1, minWidth: 0 }}>
+                <b style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                  {currentUser?.name || 'Lead Engineer'}
+                </b>
+                <small style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                  {currentUser?.email || 'dev@changeradar.io'}
+                </small>
+              </span>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="icon-button"
+                  title="Sign Out"
+                  style={{ marginLeft: '6px', color: 'var(--ws-text-muted)' }}
+                  type="button"
+                >
+                  <LogOut size={16} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </aside>

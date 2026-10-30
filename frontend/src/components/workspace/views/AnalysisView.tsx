@@ -172,6 +172,10 @@ export function AnalysisView({
                 <ShieldAlert size={22} color={report.risk_level === 'high' ? '#d66e68' : '#d9a15f'} />
                 <div>
                   <h4>Risk Evaluation: {report.risk_level.toUpperCase()} (Score: {report.risk_score} / 100)</h4>
+                  <div style={{ fontSize: '12px', color: 'var(--ws-text-muted)', display: 'flex', alignItems: 'center', gap: '6px', margin: '4px 0 6px 0' }}>
+                    <Info size={14} color="var(--lime)" />
+                    <span><b>Heuristic structural risk</b> (Not a probability of defect)</span>
+                  </div>
                   <p>{report.summary_text}</p>
                 </div>
               </div>

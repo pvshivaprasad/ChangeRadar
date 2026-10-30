@@ -4,13 +4,24 @@ import { Brand } from '../ui/Brand';
 interface LandingNavProps {
   onLaunch: () => void;
   onSignIn: () => void;
+  onHome?: () => void;
 }
 
-export function LandingNav({ onLaunch, onSignIn }: LandingNavProps) {
+export function LandingNav({ onLaunch, onSignIn, onHome }: LandingNavProps) {
   return (
     <header className="marketing-header">
       <nav className="marketing-nav wrap">
-        <Brand size="md" />
+        <a
+          href="#landing"
+          className="brand-link"
+          onClick={(e) => {
+            e.preventDefault();
+            onHome?.();
+          }}
+          title="ChangeRadar — Return to homepage"
+        >
+          <Brand size="md" light />
+        </a>
 
         <div className="marketing-links">
           <a href="#product">Product</a>

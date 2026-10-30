@@ -17,6 +17,8 @@ import { ImpactAnalysisReport, PageId } from '../../../types';
 
 interface OverviewViewProps {
   report: ImpactAnalysisReport | null;
+  repositoriesCount?: number;
+  analysesCount?: number;
   onConnectRepo: () => void;
   onNavigate: (page: PageId) => void;
   onRunSample: () => void;
@@ -25,6 +27,8 @@ interface OverviewViewProps {
 
 export function OverviewView({
   report,
+  repositoriesCount = 0,
+  analysesCount = 0,
   onConnectRepo,
   onNavigate,
   onRunSample,
@@ -113,9 +117,13 @@ export function OverviewView({
             <span className="metric-label">Repositories Scanned</span>
             <Github size={18} className="metric-icon" />
           </div>
-          <strong className="metric-value">{hasData ? '1' : '—'}</strong>
+          <strong className="metric-value">
+            {repositoriesCount > 0 ? repositoriesCount : (hasData ? '1' : '0')}
+          </strong>
           <span className="metric-subtext">
-            {hasData ? 'synthetic_repo (verified fixture)' : 'Waiting for first repository'}
+            {repositoriesCount > 0
+              ? `${repositoriesCount} active local ${repositoriesCount === 1 ? 'repository' : 'repositories'} connected`
+              : (hasData ? 'synthetic_repo (verified fixture)' : 'Waiting for first repository')}
           </span>
         </div>
 
@@ -124,9 +132,13 @@ export function OverviewView({
             <span className="metric-label">Impact Analyses Run</span>
             <Activity size={18} className="metric-icon" />
           </div>
-          <strong className="metric-value">{hasData ? '1' : '—'}</strong>
+          <strong className="metric-value">
+            {analysesCount > 0 ? analysesCount : (hasData ? '1' : '0')}
+          </strong>
           <span className="metric-subtext">
-            {hasData ? `Commit ${report.head_commit.slice(0, 7)} vs ${report.base_commit.slice(0, 7)}` : 'Awaiting pull request scan'}
+            {hasData
+              ? `Commit ${report.head_commit.slice(0, 7)} vs ${report.base_commit.slice(0, 7)}`
+              : (analysesCount > 0 ? `${analysesCount} change reports generated` : 'Awaiting pull request scan')}
           </span>
         </div>
 

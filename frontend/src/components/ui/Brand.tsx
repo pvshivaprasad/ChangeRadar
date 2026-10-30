@@ -8,9 +8,9 @@ interface BrandProps {
 
 export function Brand({ light = false, size = 'md', className = '' }: BrandProps) {
   const markSizes = {
-    sm: { box: 26, icon: 15 },
+    sm: { box: 28, icon: 16 },
     md: { box: 34, icon: 19 },
-    lg: { box: 42, icon: 24 },
+    lg: { box: 44, icon: 26 },
   };
 
   const current = markSizes[size];
@@ -20,12 +20,13 @@ export function Brand({ light = false, size = 'md', className = '' }: BrandProps
       <span
         className="brand-mark"
         style={{ width: `${current.box}px`, height: `${current.box}px` }}
+        aria-hidden="true"
       >
-        <Radar size={current.icon} strokeWidth={2.2} />
+        <Radar size={current.icon} strokeWidth={2.4} />
       </span>
       <span className="brand-text">
-        <span className="brand-prefix">change</span>
-        <span className="brand-strong">radar</span>
+        <span className="brand-prefix">Change</span>
+        <span className="brand-strong">Radar</span>
       </span>
     </div>
   );

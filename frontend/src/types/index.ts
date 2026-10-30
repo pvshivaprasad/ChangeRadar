@@ -98,3 +98,44 @@ export interface ImpactAnalysisReport {
   summary_text: string;
   created_at: string;
 }
+
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  created_at?: string | null;
+}
+
+export interface AuthSession {
+  token: string;
+  user: User;
+}
+
+export interface RepositoryRecord {
+  id: number;
+  name: string;
+  path: string;
+  default_branch: string;
+  file_count: number;
+  symbol_count: number;
+  edge_count: number;
+  last_scanned_at?: string | null;
+  created_at?: string | null;
+  analysis_count: number;
+}
+
+export interface AnalysisRecord {
+  id: number;
+  repository_id: number;
+  base_commit: string;
+  head_commit: string;
+  risk_level: 'low' | 'medium' | 'elevated' | 'high';
+  risk_score: number;
+  changed_files_count: number;
+  changed_symbols_count: number;
+  impacted_symbols_count: number;
+  recommended_tests_count: number;
+  summary_text: string;
+  created_at?: string | null;
+  report?: ImpactAnalysisReport | null;
+}
