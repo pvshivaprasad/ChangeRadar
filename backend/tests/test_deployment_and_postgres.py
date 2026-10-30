@@ -43,6 +43,64 @@ def test_postgresql_ddl_compilation():
     assert "references repositories (id)" in full_ddl_text
     assert "timestamp" in full_ddl_text
 
+    # Verify all Boolean columns use PostgreSQL-compatible DEFAULT false (never DEFAULT 0)
+    assert "boolean default 0" not in full_ddl_text, "Found invalid integer default for boolean column in PostgreSQL DDL"
+    assert "is_archived boolean default false" in full_ddl_text
+    assert "is_private boolean default false" in full_ddl_text
+    assert "is_github_pr boolean default false" in full_ddl_text
+
+
+def test_postgresql_and_sqlite_boolean_defaults_compatibility():
+    """Verify that boolean server defaults compile to native representations in both PostgreSQL and SQLite."""
+    import sqlalchemy as sa
+    from sqlalchemy.dialects import postgresql, sqlite
+
+    col = sa.Column("is_archived", sa.Boolean(), server_default=sa.false(), nullable=False)
+    table = sa.Table("test_repo", sa.MetaData(), col)
+
+    pg_sql = str(sa.schema.CreateTable(table).compile(dialect=postgresql.dialect())).lower()
+    sqlite_sql = str(sa.schema.CreateTable(table).compile(dialect=sqlite.dialect())).lower()
+
+    # PostgreSQL must compile to 'boolean default false' (not default 0)
+    assert "is_archived boolean default false not null" in pg_sql
+    assert "default 0" not in pg_sql
+
+    # SQLite must compile to 'boolean default 0' (valid SQLite boolean integer)
+    assert "is_archived boolean default 0 not null" in sqlite_sql
+
+
+def test_fresh_database_alembic_upgrade_downgrade_cycle(tmp_path):
+    """Verify that Alembic migrations can initialize a fresh database from scratch, downgrade to base, and upgrade back to head."""
+    import os
+    from alembic.config import Config
+    from alembic import command
+
+    db_file = os.path.join(tmp_path, "fresh_migration_test.db")
+    db_url = f"sqlite:///{db_file}"
+
+    # Backup DATABASE_URL env var
+    old_db_url = os.environ.get("DATABASE_URL")
+    try:
+        os.environ["DATABASE_URL"] = db_url
+
+        cfg = Config("backend/alembic.ini")
+        cfg.set_main_option("script_location", "backend/alembic")
+
+        # 1. Fresh upgrade to head
+        command.upgrade(cfg, "head")
+
+        # 2. Downgrade all the way to base
+        command.downgrade(cfg, "base")
+
+        # 3. Re-upgrade back to head
+        command.upgrade(cfg, "head")
+    finally:
+        if old_db_url:
+            os.environ["DATABASE_URL"] = old_db_url
+        else:
+            os.environ.pop("DATABASE_URL", None)
+
+
 
 def test_health_endpoint(client):
     """Verify /health liveness probe returns 200 and version info."""

@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    false,
 )
 from sqlalchemy.orm import relationship
 
@@ -139,11 +140,11 @@ class Repository(Base):
     default_branch = Column(String(100), default="main", nullable=False)
     github_repo_full_name = Column(String(255), nullable=True, index=True)  # e.g. "owner/repo"
     github_clone_url = Column(String(1024), nullable=True)
-    is_private = Column(Boolean, default=False, nullable=False)
+    is_private = Column(Boolean, default=False, server_default=false(), nullable=False)
     file_count = Column(Integer, default=0, nullable=False)
     symbol_count = Column(Integer, default=0, nullable=False)
     edge_count = Column(Integer, default=0, nullable=False)
-    is_archived = Column(Boolean, default=False, nullable=False)
+    is_archived = Column(Boolean, default=False, server_default=false(), nullable=False)
     last_scanned_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
@@ -183,7 +184,7 @@ class Analysis(Base):
     head_commit = Column(String(100), nullable=False)
     pr_number = Column(Integer, nullable=True, index=True)
     pr_title = Column(String(512), nullable=True)
-    is_github_pr = Column(Boolean, default=False, nullable=False)
+    is_github_pr = Column(Boolean, default=False, server_default=false(), nullable=False)
     github_comment_id = Column(String(100), nullable=True)
     analysis_engine_version = Column(String(50), default="1.0.0", nullable=False)
     status = Column(String(50), default="completed", nullable=False)  # pending, running, completed, failed

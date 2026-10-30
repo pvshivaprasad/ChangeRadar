@@ -93,7 +93,7 @@ def init_db() -> bool:
                     if "github_clone_url" not in cols:
                         conn.execute(text("ALTER TABLE repositories ADD COLUMN github_clone_url VARCHAR(1024)"))
                     if "is_private" not in cols:
-                        conn.execute(text("ALTER TABLE repositories ADD COLUMN is_private BOOLEAN DEFAULT 0"))
+                        conn.execute(text("ALTER TABLE repositories ADD COLUMN is_private BOOLEAN DEFAULT false"))
 
                 # 2. Analyses table columns
                 res_a = conn.execute(text("PRAGMA table_info(analyses)")).fetchall()
@@ -104,7 +104,7 @@ def init_db() -> bool:
                     if "pr_title" not in cols_a:
                         conn.execute(text("ALTER TABLE analyses ADD COLUMN pr_title VARCHAR(512)"))
                     if "is_github_pr" not in cols_a:
-                        conn.execute(text("ALTER TABLE analyses ADD COLUMN is_github_pr BOOLEAN DEFAULT 0"))
+                        conn.execute(text("ALTER TABLE analyses ADD COLUMN is_github_pr BOOLEAN DEFAULT false"))
                     if "github_comment_id" not in cols_a:
                         conn.execute(text("ALTER TABLE analyses ADD COLUMN github_comment_id VARCHAR(100)"))
                     if "analysis_engine_version" not in cols_a:

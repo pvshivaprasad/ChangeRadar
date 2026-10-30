@@ -89,7 +89,7 @@ def upgrade() -> None:
             if 'github_clone_url' not in repo_cols:
                 batch_op.add_column(sa.Column('github_clone_url', sa.String(length=1024), nullable=True))
             if 'is_private' not in repo_cols:
-                batch_op.add_column(sa.Column('is_private', sa.Boolean(), server_default=sa.text('0'), nullable=False))
+                batch_op.add_column(sa.Column('is_private', sa.Boolean(), server_default=sa.false(), nullable=False))
 
     # 5. Add columns to analyses table
     if 'analyses' in tables:
@@ -101,7 +101,7 @@ def upgrade() -> None:
             if 'pr_title' not in analysis_cols:
                 batch_op.add_column(sa.Column('pr_title', sa.String(length=512), nullable=True))
             if 'is_github_pr' not in analysis_cols:
-                batch_op.add_column(sa.Column('is_github_pr', sa.Boolean(), server_default=sa.text('0'), nullable=False))
+                batch_op.add_column(sa.Column('is_github_pr', sa.Boolean(), server_default=sa.false(), nullable=False))
             if 'github_comment_id' not in analysis_cols:
                 batch_op.add_column(sa.Column('github_comment_id', sa.String(length=100), nullable=True))
             if 'analysis_engine_version' not in analysis_cols:

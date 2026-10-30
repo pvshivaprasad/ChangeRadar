@@ -53,7 +53,7 @@ def upgrade() -> None:
             sa.Column('file_count', sa.Integer(), server_default=sa.text('0'), nullable=False),
             sa.Column('symbol_count', sa.Integer(), server_default=sa.text('0'), nullable=False),
             sa.Column('edge_count', sa.Integer(), server_default=sa.text('0'), nullable=False),
-            sa.Column('is_archived', sa.Boolean(), server_default=sa.text('0'), nullable=False),
+            sa.Column('is_archived', sa.Boolean(), server_default=sa.false(), nullable=False),
             sa.Column('last_scanned_at', sa.DateTime(), nullable=True),
             sa.Column('created_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
             sa.Column('updated_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
@@ -63,7 +63,7 @@ def upgrade() -> None:
     else:
         with op.batch_alter_table('repositories', schema=None) as batch_op:
             batch_op.add_column(sa.Column('user_id', sa.Integer(), server_default=sa.text('1'), nullable=False))
-            batch_op.add_column(sa.Column('is_archived', sa.Boolean(), server_default=sa.text('0'), nullable=False))
+            batch_op.add_column(sa.Column('is_archived', sa.Boolean(), server_default=sa.false(), nullable=False))
             batch_op.add_column(sa.Column('updated_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False))
             batch_op.drop_index('ix_repositories_path')
             batch_op.create_index('ix_repositories_path', ['path'], unique=False)
@@ -110,27 +110,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    with op.batch_alter_table('analyses', schema=None) as batch_op:
-        batch_op.drop_constraint('fk_analyses_repository_id', type_='foreignkey')
-        batch_op.drop_constraint('fk_analyses_user_id', type_='foreignkey')
-        batch_op.drop_index('ix_analyses_user_id')
-        batch_op.alter_column('repository_id', existing_type=sa.INTEGER(), nullable=False)
-        batch_op.drop_column('updated_at')
-        batch_op.drop_column('error_message')
-        batch_op.drop_column('status')
-        batch_op.drop_column('repo_path')
-        batch_op.drop_column('repo_name')
-        batch_op.drop_column('user_id')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    tables = inspector.get_table_names()
 
-    with op.batch_alter_table('repositories', schema=None) as batch_op:
-        batch_op.drop_constraint('fk_repositories_user_id', type_='foreignkey')
-        batch_op.drop_index('ix_repositories_user_id')
-        batch_op.drop_index('ix_repositories_path')
-        batch_op.create_index('ix_repositories_path', ['path'], unique=True)
-        batch_op.drop_column('updated_at')
-        batch_op.drop_column('is_archived')
-        batch_op.drop_column('user_id')
-
-    with op.batch_alter_table('users', schema=None) as batch_op:
-        batch_op.drop_column('updated_at')
-        batch_op.drop_column('token_expires_at')
+    if 'analyses' in tables:
+        op.drop_table('analyses')
+    if 'repositories' in tables:
+        op.drop_table('repositories')
+    if 'users' in tables:
+        op.drop_table('users')

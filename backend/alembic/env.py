@@ -24,8 +24,9 @@ if config.config_file_name is not None:
 # Model metadata for autogenerate support
 target_metadata = Base.metadata
 
-# Use the application's configured database URL
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Use the application's configured database URL (respecting runtime environment override)
+db_url = os.environ.get("DATABASE_URL") or config.get_main_option("sqlalchemy.url") or settings.database_url
+config.set_main_option("sqlalchemy.url", db_url)
 
 
 def run_migrations_offline() -> None:
