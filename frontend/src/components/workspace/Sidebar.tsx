@@ -7,6 +7,7 @@ import {
   GitBranch,
   Github,
   LayoutDashboard,
+  LogOut,
   Settings2,
   Workflow,
   X,
@@ -29,6 +30,7 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onHome: () => void;
+  onAuth: () => void;
 }
 
 export function Sidebar({
@@ -37,6 +39,7 @@ export function Sidebar({
   isOpen,
   onClose,
   onHome,
+  onAuth,
 }: SidebarProps) {
   return (
     <>
@@ -56,7 +59,7 @@ export function Sidebar({
             title="Return to ChangeRadar homepage"
             type="button"
           >
-            <Brand />
+            <Brand size="md" />
           </button>
           <button
             className="icon-button mobile-close"
@@ -70,14 +73,14 @@ export function Sidebar({
 
         <button className="workspace-switch" type="button">
           <span className="workspace-avatar">CR</span>
-          <span>
-            <b>Engineering Team</b>
-            <small>Personal workspace</small>
+          <span className="workspace-switch-text">
+            <b>Production Workspace</b>
+            <small>Enterprise preview</small>
           </span>
-          <ChevronDown size={14} />
+          <ChevronDown size={15} />
         </button>
 
-        <div className="nav-label">WORKSPACE</div>
+        <div className="nav-label">WORKSPACE VIEWS</div>
         <nav className="side-nav">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -92,8 +95,8 @@ export function Sidebar({
                 }}
                 type="button"
               >
-                <Icon size={16} />
-                <span>{item.label}</span>
+                <Icon size={18} />
+                <span className="nav-item-label">{item.label}</span>
                 {item.badge && <span className="nav-new">{item.badge}</span>}
               </button>
             );
@@ -101,25 +104,32 @@ export function Sidebar({
         </nav>
 
         <div className="sidebar-bottom">
-          <div className="sidebar-help">
+          <a
+            href="http://localhost:8000/docs"
+            target="_blank"
+            rel="noreferrer"
+            className="sidebar-help-link"
+          >
             <div className="help-icon">
-              <CircleHelp size={16} />
+              <CircleHelp size={17} />
             </div>
-            <div>
-              <b>Need a hand?</b>
-              <small>Explore architecture & docs</small>
+            <div className="help-text">
+              <b>API Reference</b>
+              <small>Explore FastAPI Swagger docs</small>
             </div>
-            <ArrowUpRight size={13} />
-          </div>
+            <ArrowUpRight size={14} />
+          </a>
 
-          <button className="profile-button" type="button">
-            <span className="profile-avatar">CR</span>
-            <span>
-              <b>Lead Engineer</b>
-              <small>Workspace admin</small>
-            </span>
-            <Settings2 size={15} />
-          </button>
+          <div className="sidebar-user-card">
+            <button className="profile-button" type="button" onClick={onAuth}>
+              <span className="profile-avatar">CR</span>
+              <span className="profile-info">
+                <b>Lead Engineer</b>
+                <small>Shiva Prasad · Workspace Admin</small>
+              </span>
+              <Settings2 size={16} />
+            </button>
+          </div>
         </div>
       </aside>
     </>

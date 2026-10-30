@@ -1,13 +1,35 @@
 import { useState } from 'react';
 import { Landing } from './components/landing/Landing';
 import { Workspace } from './components/workspace/Workspace';
+import { AuthPage } from './components/auth/AuthPage';
+
+export type AppView = 'landing' | 'workspace' | 'auth';
 
 export default function App() {
-  const [inWorkspace, setInWorkspace] = useState(false);
+  const [view, setView] = useState<AppView>('landing');
 
-  return inWorkspace ? (
-    <Workspace onHome={() => setInWorkspace(false)} />
-  ) : (
-    <Landing onLaunch={() => setInWorkspace(true)} />
+  if (view === 'auth') {
+    return (
+      <AuthPage
+        onSuccess={() => setView('workspace')}
+        onBack={() => setView('landing')}
+      />
+    );
+  }
+
+  if (view === 'workspace') {
+    return (
+      <Workspace
+        onHome={() => setView('landing')}
+        onAuth={() => setView('auth')}
+      />
+    );
+  }
+
+  return (
+    <Landing
+      onLaunch={() => setView('workspace')}
+      onSignIn={() => setView('auth')}
+    />
   );
 }

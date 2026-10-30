@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ArrowDownRight,
   ArrowRight,
@@ -5,111 +6,160 @@ import {
   Braces,
   GitBranch,
   LockKeyhole,
+  Sparkles,
+  Workflow,
   Zap,
 } from 'lucide-react';
 
-export function Hero({ onLaunch }: { onLaunch: () => void }) {
+interface HeroProps {
+  onLaunch: () => void;
+}
+
+export function Hero({ onLaunch }: HeroProps) {
+  const [activeNode, setActiveNode] = useState<string | null>(null);
+
+  const nodes = [
+    { id: 'checkout', label: 'checkout.service', icon: Boxes, cls: 'node-a', impact: 'Direct dependent', tests: '3 tests' },
+    { id: 'sessions', label: 'user.sessions', icon: LockKeyhole, cls: 'node-b', impact: 'Direct dependent', tests: '5 tests' },
+    { id: 'payments', label: 'billing.gateway', icon: Zap, cls: 'node-c', impact: '2 hops downstream', tests: '4 tests' },
+    { id: 'profile', label: 'identity.profile', icon: GitBranch, cls: 'node-d', impact: 'Downstream consumer', tests: '2 tests' },
+  ];
+
   return (
     <section className="hero wrap">
       <div className="hero-copy">
         <div className="eyebrow">
-          <span className="eyebrow-dot" /> SOFTWARE CHANGE INTELLIGENCE
+          <span className="eyebrow-dot" />
+          <span>SOFTWARE CHANGE IMPACT INTELLIGENCE</span>
         </div>
+
         <h1>
           See the impact
           <br />
           before it <em>happens.</em>
         </h1>
+
         <p className="hero-lede">
-          Every code change has a ripple effect. Understand dependencies, surface
-          potential risks, and give your team the context to ship with
-          confidence.
+          Every pull request causes ripple effects across your codebase. ChangeRadar
+          statically traces function and class dependency paths, isolates breaking risks,
+          and flags exact tests to run before you merge.
         </p>
+
         <div className="hero-actions">
           <button
-            className="button button-lime"
+            className="button button-lime button-hero"
             onClick={onLaunch}
             type="button"
           >
-            Explore the workspace <ArrowRight size={17} />
+            <span>Explore workspace preview</span>
+            <ArrowRight size={18} />
           </button>
-          <a className="text-link" href="#how">
-            See how it works <ArrowDownRight size={16} />
+          <a className="text-link hero-secondary-link" href="#how">
+            <span>How the analysis works</span>
+            <ArrowDownRight size={17} />
           </a>
         </div>
+
         <div className="hero-proof">
           <div className="avatar-stack">
             <span>JD</span>
             <span>MK</span>
             <span>AS</span>
+            <span>RL</span>
           </div>
-          <span>Built for the people behind the code.</span>
+          <div className="proof-text">
+            <b>Built for thoughtful engineering teams.</b>
+            <span>Statically verified • Deterministic commit SHAs • Zero code execution</span>
+          </div>
         </div>
       </div>
 
       <div
-        className="hero-art"
-        aria-label="Illustrative code dependency visualization"
+        className="hero-art-container"
+        aria-label="Interactive code dependency visualization"
       >
-        <div className="art-topline">
-          <span>CHANGE GRAPH / 001</span>
-          <span className="live-indicator">
-            <i /> LIVE SYSTEM VIEW
-          </span>
-        </div>
-        <div className="graph-canvas">
-          <svg
-            className="graph-lines"
-            viewBox="0 0 560 430"
-            preserveAspectRatio="xMidYMid meet"
-            aria-hidden="true"
-          >
-            <path d="M280 211 L140 112 L66 220 M280 211 L424 105 L496 225 M280 211 L151 337 L67 275 M280 211 L417 337 L500 280 M140 112 L424 105 M151 337 L417 337" />
-            <path
-              className="graph-line-accent"
-              d="M280 211 L424 105 L496 225 M280 211 L151 337"
-            />
-            <circle cx="280" cy="211" r="74" className="orbit orbit-one" />
-            <circle cx="280" cy="211" r="111" className="orbit orbit-two" />
-          </svg>
-          <div className="graph-node node-core">
-            <span className="node-icon">
-              <Braces size={20} />
+        <div className="hero-art">
+          <div className="art-topline">
+            <span className="art-tag">
+              <Workflow size={13} />
+              <span>DEPENDENCY GRAPH / 001</span>
             </span>
-            <b>auth.service</b>
-            <small>CORE MODULE</small>
-          </div>
-          <div className="graph-node node-a">
-            <span className="node-icon">
-              <Boxes size={16} />
+            <span className="live-indicator">
+              <i />
+              <span>STATIC CALL ENGINE READY</span>
             </span>
-            <b>checkout</b>
           </div>
-          <div className="graph-node node-b">
-            <span className="node-icon">
-              <LockKeyhole size={16} />
-            </span>
-            <b>sessions</b>
+
+          <div className="graph-canvas">
+            <svg
+              className="graph-lines"
+              viewBox="0 0 620 440"
+              preserveAspectRatio="xMidYMid meet"
+              aria-hidden="true"
+            >
+              {/* Secondary dashed connection lines */}
+              <path
+                d="M310 220 L130 95 L50 220 M310 220 L490 90 L570 215 M310 220 L140 345 L50 280 M310 220 L480 345 L570 280 M130 95 L490 90 M140 345 L480 345"
+                className="graph-line-bg"
+              />
+              {/* Highlighted active impact path */}
+              <path
+                className="graph-line-accent"
+                d="M310 220 L490 90 L570 215 M310 220 L140 345"
+              />
+              {/* Radial orbits */}
+              <circle cx="310" cy="220" r="95" className="orbit orbit-one" />
+              <circle cx="310" cy="220" r="150" className="orbit orbit-two" />
+            </svg>
+
+            {/* Core Changed Symbol */}
+            <div
+              className={`graph-node node-core ${activeNode === 'core' ? 'node-hovered' : ''}`}
+              onMouseEnter={() => setActiveNode('core')}
+              onMouseLeave={() => setActiveNode(null)}
+            >
+              <span className="node-icon">
+                <Braces size={22} />
+              </span>
+              <div className="node-info">
+                <b>auth.service</b>
+                <small>MODIFIED SYMBOL</small>
+              </div>
+            </div>
+
+            {/* Satellite Nodes */}
+            {nodes.map((n) => {
+              const Icon = n.icon;
+              const isHovered = activeNode === n.id;
+              return (
+                <div
+                  key={n.id}
+                  className={`graph-node ${n.cls} ${isHovered ? 'node-hovered' : ''}`}
+                  onMouseEnter={() => setActiveNode(n.id)}
+                  onMouseLeave={() => setActiveNode(null)}
+                >
+                  <span className="node-icon">
+                    <Icon size={16} />
+                  </span>
+                  <div className="node-info">
+                    <b>{n.label}</b>
+                    <small>{n.impact}</small>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Graph Floating Status Pill */}
+            <div className="graph-tag">
+              <Sparkles size={13} />
+              <span>4 downstream modules affected · 14 tests recommended</span>
+            </div>
           </div>
-          <div className="graph-node node-c">
-            <span className="node-icon">
-              <Zap size={16} />
-            </span>
-            <b>payments</b>
+
+          <div className="art-footer">
+            <span>EVIDENCE TRACEABILITY</span>
+            <span>AST symbol extraction & import provenance</span>
           </div>
-          <div className="graph-node node-d">
-            <span className="node-icon">
-              <GitBranch size={16} />
-            </span>
-            <b>user.profile</b>
-          </div>
-          <div className="graph-tag">
-            <span /> 4 connected modules
-          </div>
-        </div>
-        <div className="art-footer">
-          <span>DEPENDENCY PREVIEW</span>
-          <span>Illustrative visualization</span>
         </div>
       </div>
     </section>

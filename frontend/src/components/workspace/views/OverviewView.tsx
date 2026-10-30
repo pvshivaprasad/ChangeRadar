@@ -19,111 +19,139 @@ interface OverviewViewProps {
 
 export function OverviewView({ onConnectRepo, onNavigate }: OverviewViewProps) {
   return (
-    <>
+    <div className="overview-container">
+      {/* Welcome Panel */}
       <div className="welcome-panel">
         <div className="welcome-copy">
-          <span className="welcome-kicker">
-            <Sparkles size={14} /> YOUR WORKSPACE IS READY
-          </span>
+          <div className="welcome-kicker">
+            <Sparkles size={15} />
+            <span>WORKSPACE INITIALIZED & READY</span>
+          </div>
           <h2>
-            Start with a<br />
-            <em>repository.</em>
+            Connect your first
+            <br />
+            <em>codebase.</em>
           </h2>
           <p>
-            Connect a GitHub codebase to map dependencies, surface potential
-            change risk, and discover relevant tests before merging.
+            ChangeRadar statically parses Python AST to construct an immutable
+            symbol dependency graph. Trace call hierarchies and discover potential
+            change impact across modules before merging.
           </p>
-          <button
-            className="button button-lime"
-            onClick={onConnectRepo}
-            type="button"
-          >
-            Connect a repository <ArrowRight size={16} />
-          </button>
+          <div className="welcome-actions">
+            <button
+              className="button button-lime button-panel"
+              onClick={onConnectRepo}
+              type="button"
+            >
+              <span>Connect GitHub repository</span>
+              <ArrowRight size={17} />
+            </button>
+            <button
+              className="button button-ghost button-panel"
+              onClick={() => onNavigate('analysis')}
+              type="button"
+            >
+              <span>Inspect analysis pipeline</span>
+            </button>
+          </div>
         </div>
 
         <div className="welcome-visual" aria-hidden="true">
           <div className="welcome-orbit orbit-a" />
           <div className="welcome-orbit orbit-b" />
           <div className="welcome-core">
-            <Radar size={37} />
+            <Radar size={42} strokeWidth={2} />
           </div>
           <div className="floating-chip chip-a">
-            <GitBranch size={14} /> Source code
+            <GitBranch size={15} />
+            <span>AST symbol extraction</span>
           </div>
           <div className="floating-chip chip-b">
-            <Workflow size={14} /> Dependencies
+            <Workflow size={15} />
+            <span>Dependency DAG</span>
           </div>
           <div className="floating-chip chip-c">
-            <ShieldCheck size={14} /> Impact insights
+            <ShieldCheck size={15} />
+            <span>Impact reports</span>
           </div>
         </div>
       </div>
 
+      {/* Metric Cards */}
       <div className="metric-grid">
         <div className="metric-card">
           <div className="metric-top">
-            <span>Repositories</span>
-            <Github size={16} />
+            <span className="metric-label">Repositories Connected</span>
+            <Github size={18} className="metric-icon" />
           </div>
-          <strong>—</strong>
-          <small>Connect your first repository</small>
+          <strong className="metric-value">—</strong>
+          <span className="metric-subtext">Waiting for first repository</span>
         </div>
+
         <div className="metric-card">
           <div className="metric-top">
-            <span>Analyses run</span>
-            <Activity size={16} />
+            <span className="metric-label">Impact Analyses Run</span>
+            <Activity size={18} className="metric-icon" />
           </div>
-          <strong>—</strong>
-          <small>Waiting for your first analysis</small>
+          <strong className="metric-value">—</strong>
+          <span className="metric-subtext">Awaiting pull request scan</span>
         </div>
+
         <div className="metric-card">
           <div className="metric-top">
-            <span>Potential impacts</span>
-            <Workflow size={16} />
+            <span className="metric-label">Dependencies Mapped</span>
+            <Workflow size={18} className="metric-icon" />
           </div>
-          <strong>—</strong>
-          <small>Computed from dependency graph</small>
+          <strong className="metric-value">—</strong>
+          <span className="metric-subtext">Computed from AST call graph</span>
         </div>
+
         <div className="metric-card">
           <div className="metric-top">
-            <span>Tests suggested</span>
-            <Check size={16} />
+            <span className="metric-label">Targeted Tests Suggested</span>
+            <Check size={18} className="metric-icon" />
           </div>
-          <strong>—</strong>
-          <small>Insights from changed symbols</small>
+          <strong className="metric-value">—</strong>
+          <span className="metric-subtext">Deterministic path coverage</span>
         </div>
       </div>
 
+      {/* Lower Dashboard Grid */}
       <div className="lower-grid">
+        {/* Recent Activity Card */}
         <section className="surface-card recent-card">
           <div className="card-heading">
             <div>
-              <h3>Recent activity</h3>
-              <p>Your latest repository and analysis events</p>
+              <h3>Recent Repository Activity</h3>
+              <p>Chronological feed of scans, commits, and impact evaluations</p>
             </div>
             <button
               className="quiet-button"
               onClick={() => onNavigate('reports')}
               type="button"
             >
-              View all <ArrowRight size={14} />
+              <span>View all reports</span>
+              <ArrowRight size={15} />
             </button>
           </div>
           <EmptyState
-            title="Nothing here just yet"
-            description="Your repository activity and analysis history will show up here once you get connected."
+            title="No activity recorded yet"
+            description="Your repository scan events and PR impact evaluations will appear here once you link a codebase."
+            action="Connect a repository"
+            onAction={onConnectRepo}
           />
         </section>
 
+        {/* Getting Started Checklist */}
         <section className="surface-card getting-card">
           <div className="card-heading">
             <div>
-              <h3>Getting started</h3>
-              <p>Your first steps with ChangeRadar</p>
+              <h3>Getting Started with ChangeRadar</h3>
+              <p>Key setup milestones for your engineering workspace</p>
             </div>
-            <span className="progress-label">0 of 3</span>
+            <span className="progress-label">0 of 3 completed</span>
           </div>
+
           <div className="checklist">
             <div
               className="checklist-item"
@@ -132,12 +160,13 @@ export function OverviewView({ onConnectRepo, onNavigate }: OverviewViewProps) {
               tabIndex={0}
             >
               <span className="step-number">01</span>
-              <span>
-                <b>Connect a repository</b>
-                <small>Bring in a GitHub codebase</small>
-              </span>
-              <ArrowRight size={15} />
+              <div className="step-content">
+                <b>Connect a GitHub repository</b>
+                <small>Link a public or private Python codebase for static scanning</small>
+              </div>
+              <ArrowRight size={16} className="step-arrow" />
             </div>
+
             <div
               className="checklist-item"
               onClick={() => onNavigate('dependencies')}
@@ -145,12 +174,13 @@ export function OverviewView({ onConnectRepo, onNavigate }: OverviewViewProps) {
               tabIndex={0}
             >
               <span className="step-number">02</span>
-              <span>
-                <b>Build your code map</b>
-                <small>Discover modules and dependencies</small>
-              </span>
-              <ArrowRight size={15} />
+              <div className="step-content">
+                <b>Build your first code map</b>
+                <small>Extract functions, classes, and cross-module dependency edges</small>
+              </div>
+              <ArrowRight size={16} className="step-arrow" />
             </div>
+
             <div
               className="checklist-item"
               onClick={() => onNavigate('analysis')}
@@ -158,15 +188,15 @@ export function OverviewView({ onConnectRepo, onNavigate }: OverviewViewProps) {
               tabIndex={0}
             >
               <span className="step-number">03</span>
-              <span>
-                <b>Run an impact analysis</b>
-                <small>Review your first change</small>
-              </span>
-              <ArrowRight size={15} />
+              <div className="step-content">
+                <b>Run a change impact analysis</b>
+                <small>Compare two commit SHAs and discover downstream ripple risks</small>
+              </div>
+              <ArrowRight size={16} className="step-arrow" />
             </div>
           </div>
         </section>
       </div>
-    </>
+    </div>
   );
 }

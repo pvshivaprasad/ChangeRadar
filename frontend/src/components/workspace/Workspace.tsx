@@ -15,9 +15,10 @@ import { StatusBadge } from '../ui/StatusBadge';
 
 interface WorkspaceProps {
   onHome: () => void;
+  onAuth: () => void;
 }
 
-export function Workspace({ onHome }: WorkspaceProps) {
+export function Workspace({ onHome, onAuth }: WorkspaceProps) {
   const [page, setPage] = useState<PageId>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showConnect, setShowConnect] = useState(false);
@@ -40,27 +41,27 @@ export function Workspace({ onHome }: WorkspaceProps) {
   const pageHeadings: Record<PageId, { title: string; subtitle: string }> = {
     overview: {
       title: 'Engineering Overview',
-      subtitle: 'Your change intelligence picture, all in one place.',
+      subtitle: 'Your change intelligence picture, call graphs, and blast radius context all in one place.',
     },
     repositories: {
       title: 'Connected Repositories',
-      subtitle: 'Manage codebases monitored for change and dependency intelligence.',
+      subtitle: 'Manage repositories monitored for AST symbol extraction and Git diff tracking.',
     },
     analysis: {
       title: 'Change Impact Analysis',
-      subtitle: 'Inspect code revisions and trace impact paths across modules.',
+      subtitle: 'Compare Git revisions and evaluate potential downstream blast radius before merging.',
     },
     dependencies: {
       title: 'Dependency Explorer',
-      subtitle: 'Interactive module, class, and function call graph.',
+      subtitle: 'Interactive DAG representation of module, class, and function call hierarchies.',
     },
     tests: {
       title: 'Test Intelligence',
-      subtitle: 'Prioritized tests mapped to changed code paths and coverage boundaries.',
+      subtitle: 'Targeted test suite recommendations based on modified code paths and coverage gaps.',
     },
     reports: {
       title: 'Risk & Audit Reports',
-      subtitle: 'Traceable, reproducible change impact assessments tied to commit SHAs.',
+      subtitle: 'Traceable, reproducible change impact assessments tied to immutable commit SHAs.',
     },
   };
 
@@ -74,6 +75,7 @@ export function Workspace({ onHome }: WorkspaceProps) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onHome={onHome}
+        onAuth={onAuth}
       />
 
       <main className="workspace-main">
@@ -81,24 +83,27 @@ export function Workspace({ onHome }: WorkspaceProps) {
           pageLabel={activeItem.label}
           onOpenSidebar={() => setSidebarOpen(true)}
           onOpenCommandPalette={() => setShowCommandPalette(true)}
+          onAuth={onAuth}
         />
 
         <div className="page-content">
           <div className="page-heading">
-            <div>
+            <div className="heading-copy">
               <div className="eyebrow">
-                PERSONAL WORKSPACE <span className="heading-dot" /> ENTERPRISE PREVIEW
+                <span className="eyebrow-dot" />
+                <span>PERSONAL WORKSPACE &bull; ENTERPRISE PREVIEW</span>
               </div>
               <h1>{title}</h1>
-              <p>{subtitle}</p>
+              <p className="page-subtitle">{subtitle}</p>
             </div>
             {page === 'repositories' && (
               <button
-                className="button button-lime button-small"
+                className="button button-lime button-heading"
                 onClick={() => setShowConnect(true)}
                 type="button"
               >
-                <Plus size={15} /> Connect repository
+                <Plus size={16} />
+                <span>Connect repository</span>
               </button>
             )}
           </div>
@@ -121,9 +126,13 @@ export function Workspace({ onHome }: WorkspaceProps) {
         </div>
 
         <footer className="workspace-footer">
-          <span>
-            CHANGE RADAR <b>FOUNDATION v0.1.1</b>
-          </span>
+          <div className="workspace-footer-left">
+            <span>
+              CHANGE RADAR <b>FOUNDATION v0.1.1</b>
+            </span>
+            <span className="footer-dot-sep">&bull;</span>
+            <span>PROD RUNTIME READY</span>
+          </div>
           <StatusBadge minimal={false} />
         </footer>
       </main>

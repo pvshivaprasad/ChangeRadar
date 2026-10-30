@@ -1,18 +1,19 @@
-import { Bell, Menu, Search } from 'lucide-react';
+import { Bell, Menu, Search, User } from 'lucide-react';
 import { StatusBadge } from '../ui/StatusBadge';
 import { ThemeToggle } from '../ui/ThemeToggle';
-import { PageId } from '../../types';
 
 interface TopbarProps {
   pageLabel: string;
   onOpenSidebar: () => void;
   onOpenCommandPalette: () => void;
+  onAuth: () => void;
 }
 
 export function Topbar({
   pageLabel,
   onOpenSidebar,
   onOpenCommandPalette,
+  onAuth,
 }: TopbarProps) {
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
@@ -25,11 +26,13 @@ export function Topbar({
           aria-label="Open menu"
           type="button"
         >
-          <Menu size={18} />
+          <Menu size={20} />
         </button>
-        <span className="breadcrumb-muted">Workspace</span>
-        <span className="breadcrumb-slash">/</span>
-        <span className="breadcrumb-current">{pageLabel}</span>
+        <div className="breadcrumbs">
+          <span className="breadcrumb-muted">Workspace</span>
+          <span className="breadcrumb-slash">/</span>
+          <span className="breadcrumb-current">{pageLabel}</span>
+        </div>
       </div>
 
       <div className="topbar-right">
@@ -39,8 +42,8 @@ export function Topbar({
           title="Search workspace (Ctrl+K or ⌘K)"
           type="button"
         >
-          <Search size={14} />
-          <span>Search</span>
+          <Search size={15} />
+          <span>Quick actions & search</span>
           <kbd>{isMac ? '⌘ K' : 'Ctrl K'}</kbd>
         </button>
 
@@ -50,16 +53,21 @@ export function Topbar({
 
         <button
           className="icon-button"
-          title="Notifications"
+          title="Workspace Notifications"
           aria-label="Notifications"
           type="button"
         >
-          <Bell size={16} />
+          <Bell size={18} />
         </button>
 
-        <span className="top-avatar" title="Signed in as Lead Engineer">
-          CR
-        </span>
+        <button
+          className="top-avatar-btn"
+          onClick={onAuth}
+          title="Account & Authentication"
+          type="button"
+        >
+          <span className="top-avatar">CR</span>
+        </button>
       </div>
     </header>
   );
