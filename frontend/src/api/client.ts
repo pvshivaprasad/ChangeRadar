@@ -1,4 +1,8 @@
-import { SystemHealth } from '../types';
+import {
+  ImpactAnalysisReport,
+  ScanSummary,
+  SystemHealth,
+} from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -44,4 +48,66 @@ export async function fetchSystemHealth(): Promise<SystemHealth> {
       responseTimeMs: duration,
     };
   }
+}
+
+export async function fetchSampleAnalysis(): Promise<ImpactAnalysisReport> {
+  const res = await fetch(`${API_BASE}/api/v1/sample/run`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Analysis failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchSampleScan(): Promise<ScanSummary> {
+  const res = await fetch(`${API_BASE}/api/v1/sample/scan`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Scan failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function analyzeRepository(
+  repoPath: string,
+  baseCommit: string = 'HEAD~1',
+  headCommit: string = 'HEAD'
+): Promise<ImpactAnalysisReport> {
+  const res = await fetch(`${API_BASE}/api/v1/analyze`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      base_commit: baseCommit,
+      head_commit: headCommit,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Analysis failed: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function scanRepository(repoPath: string): Promise<ScanSummary> {
+  const res = await fetch(`${API_BASE}/api/v1/scan`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Scan failed: ${res.statusText}`);
+  }
+  return res.json();
 }

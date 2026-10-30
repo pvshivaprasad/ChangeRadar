@@ -10,3 +10,6 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+.pytest_cache/
+backend/tests/fixtures/synthetic_repo/
+backend/tests/fixtures/synthetic_repo/.git/

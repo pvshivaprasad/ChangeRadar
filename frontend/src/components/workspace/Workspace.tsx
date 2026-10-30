@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { PageId } from '../../types';
+import {
+  ImpactAnalysisReport,
+  PageId,
+  ScanSummary,
+} from '../../types';
+import {
+  analyzeRepository,
+  fetchSampleAnalysis,
+  fetchSampleScan,
+  scanRepository,
+} from '../../api/client';
 import { Sidebar, navItems } from './Sidebar';
 import { Topbar } from './Topbar';
 import { OverviewView } from './views/OverviewView';
@@ -24,7 +34,26 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
   const [showConnect, setShowConnect] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
 
-  const activeItem = navItems.find((item) => item.id === page) ?? navItems[0];
+  // Real Repository Intelligence States
+  const [report, setReport] = useState<ImpactAnalysisReport | null>(null);
+  const [scan, setScan] = useState<ScanSummary | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  // Automatically fetch initial sample scan on first workspace entry
+  useEffect(() => {
+    let mounted = true;
+    fetchSampleScan()
+      .then((data) => {
+        if (mounted) setScan(data);
+      })
+      .catch(() => {
+        // Backend offline or starting up
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Global Ctrl+K / Cmd+K listener
   useEffect(() => {
@@ -37,6 +66,61 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const handleRunSampleAnalysis = async () => {
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    try {
+      const data = await fetchSampleAnalysis();
+      setReport(data);
+      // Also update scan summary if not present
+      if (!scan) {
+        const scanData = await fetchSampleScan();
+        setScan(scanData);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Analysis failed';
+      setAnalysisError(msg);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleCustomAnalysis = async (
+    customPath: string,
+    base: string,
+    head: string
+  ) => {
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    try {
+      const data = await analyzeRepository(customPath, base, head);
+      setReport(data);
+      const scanData = await scanRepository(customPath);
+      setScan(scanData);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Custom analysis failed';
+      setAnalysisError(msg);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleScanSample = async () => {
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    try {
+      const scanData = await fetchSampleScan();
+      setScan(scanData);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Scan failed';
+      setAnalysisError(msg);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const activeItem = navItems.find((item) => item.id === page) ?? navItems[0];
 
   const pageHeadings: Record<PageId, { title: string; subtitle: string }> = {
     overview: {
@@ -106,23 +190,66 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
                 <span>Connect repository</span>
               </button>
             )}
+            {page === 'analysis' && (
+              <button
+                className="button button-lime button-heading"
+                onClick={handleRunSampleAnalysis}
+                disabled={isAnalyzing}
+                type="button"
+              >
+                <span>{isAnalyzing ? 'Analyzing...' : 'Run Sample Analysis'}</span>
+              </button>
+            )}
           </div>
 
           {page === 'overview' && (
             <OverviewView
+              report={report}
               onConnectRepo={() => setShowConnect(true)}
               onNavigate={setPage}
+              onRunSample={handleRunSampleAnalysis}
+              isAnalyzing={isAnalyzing}
             />
           )}
+
           {page === 'repositories' && (
             <RepositoriesView onConnect={() => setShowConnect(true)} />
           )}
+
           {page === 'analysis' && (
-            <AnalysisView onNavigate={() => setPage('repositories')} />
+            <AnalysisView
+              report={report}
+              onNavigate={() => setPage('repositories')}
+              onRunSample={handleRunSampleAnalysis}
+              onCustomAnalyze={handleCustomAnalysis}
+              isAnalyzing={isAnalyzing}
+              error={analysisError}
+            />
           )}
-          {page === 'dependencies' && <DependenciesView />}
-          {page === 'tests' && <TestsView />}
-          {page === 'reports' && <ReportsView />}
+
+          {page === 'dependencies' && (
+            <DependenciesView
+              scan={scan}
+              onScanSample={handleScanSample}
+              isLoading={isAnalyzing}
+            />
+          )}
+
+          {page === 'tests' && (
+            <TestsView
+              report={report}
+              onRunSample={handleRunSampleAnalysis}
+              isLoading={isAnalyzing}
+            />
+          )}
+
+          {page === 'reports' && (
+            <ReportsView
+              report={report}
+              onRunSample={handleRunSampleAnalysis}
+              isLoading={isAnalyzing}
+            />
+          )}
         </div>
 
         <footer className="workspace-footer">
@@ -131,7 +258,9 @@ export function Workspace({ onHome, onAuth }: WorkspaceProps) {
               CHANGE RADAR <b>FOUNDATION v0.1.1</b>
             </span>
             <span className="footer-dot-sep">&bull;</span>
-            <span>PROD RUNTIME READY</span>
+            <span>
+              {report ? `EVALUATED SHA ${report.head_commit.slice(0, 7)}` : 'PROD RUNTIME READY'}
+            </span>
           </div>
           <StatusBadge minimal={false} />
         </footer>

@@ -2893,3 +2893,409 @@ a {
     min-width: 100%;
   }
 }
+
+/* ==========================================================================
+   Real Analysis & Symbol DAG Results Styling
+   ========================================================================== */
+.analysis-results-grid {
+  display: grid;
+  gap: 24px;
+}
+
+.risk-banner-card {
+  background: var(--ws-surface);
+  border-left: 4px solid var(--lime);
+}
+
+[data-theme="dark"] .risk-banner-card {
+  border-left-color: var(--lime);
+}
+
+.risk-banner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.risk-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.risk-banner-title h4 {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ws-text);
+  margin-bottom: 4px;
+}
+
+.risk-banner-title p {
+  font-size: 14px;
+  color: var(--ws-text-muted);
+  max-width: 600px;
+}
+
+.risk-meta-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.meta-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.meta-stat b {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ws-text);
+}
+
+.meta-stat span {
+  font-size: 11px;
+  color: var(--ws-text-muted);
+}
+
+.symbol-table, .symbol-registry-list, .recommended-tests-list, .reports-table {
+  display: flex;
+  flex-direction: column;
+  margin-top: 14px;
+}
+
+.symbol-table-header, .test-table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr 1.2fr;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ws-border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-text-faint);
+  letter-spacing: 0.06em;
+}
+
+.test-table-header {
+  grid-template-columns: 2fr 1fr 1.5fr 2.5fr;
+}
+
+.symbol-table-row, .test-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr 1.2fr;
+  padding: 14px;
+  align-items: center;
+  border-bottom: 1px solid var(--ws-border);
+  font-size: 13px;
+  transition: background 0.15s ease;
+}
+
+.test-table-row {
+  grid-template-columns: 2fr 1fr 1.5fr 2.5fr;
+}
+
+.symbol-table-row:hover, .test-table-row:hover {
+  background-color: var(--lime-soft);
+}
+
+.symbol-name-col {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.symbol-name-col small {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-text-muted);
+}
+
+.symbol-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background-color: var(--ws-surface-subtle);
+  color: var(--ws-text-muted);
+  width: fit-content;
+}
+
+.symbol-file-col {
+  color: var(--ws-text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.symbol-lines-col {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-text-faint);
+}
+
+.impact-tree-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.impact-node-card {
+  padding: 16px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--ws-border);
+  background-color: var(--ws-surface-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.impact-node-card:hover {
+  border-color: var(--ws-border-strong);
+  transform: translateX(3px);
+}
+
+.depth-0 {
+  border-left: 4px solid var(--lime);
+  background: var(--lime-soft);
+}
+
+.depth-1 {
+  border-left: 4px solid var(--amber);
+}
+
+.depth-2 {
+  border-left: 4px solid var(--violet);
+}
+
+.impact-node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.depth-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+.depth-pill-0 { background: #c7f36b; color: #171916; }
+.depth-pill-1 { background: #f2e2cb; color: #9e6f33; }
+.depth-pill-2 { background: #ded9f5; color: #6a5ba8; }
+
+.impact-file-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-text-muted);
+}
+
+.impact-node-body b {
+  font-size: 15px;
+  color: var(--ws-text);
+}
+
+.impact-id-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-text-faint);
+  display: block;
+}
+
+.impact-path-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ws-text-muted);
+  padding-top: 6px;
+  border-top: 1px solid var(--ws-border);
+}
+
+.impact-path-breadcrumb code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--ws-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--ws-border);
+}
+
+.path-arrow {
+  color: var(--ws-text-faint);
+}
+
+.priority-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.priority-high { background: rgba(214, 110, 104, 0.2); color: #8f2924; }
+.priority-medium { background: rgba(217, 161, 95, 0.25); color: #94642b; }
+
+[data-theme="dark"] .priority-high { background: rgba(214, 110, 104, 0.25); color: #f28b85; }
+[data-theme="dark"] .priority-medium { background: rgba(217, 161, 95, 0.25); color: #d9a15f; }
+
+.test-name-col {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.test-name-col b {
+  font-size: 14px;
+  color: var(--ws-text);
+  display: block;
+}
+
+.test-name-col small {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-text-muted);
+}
+
+.test-target-col code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-text);
+}
+
+.test-reason-col {
+  font-size: 13px;
+  color: var(--ws-text-muted);
+}
+
+.table-row-item {
+  display: grid;
+  grid-template-columns: 1.5fr 1.5fr 1.5fr 1.2fr 1.5fr;
+  padding: 16px;
+  align-items: center;
+  border-bottom: 1px solid var(--ws-border);
+  font-size: 13px;
+}
+
+.mono-cell {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ws-text);
+}
+
+.sha-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count-cell b {
+  font-size: 15px;
+  color: var(--ws-text);
+}
+
+.risk-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.risk-high { background: rgba(214, 110, 104, 0.2); color: #8f2924; }
+.risk-elevated { background: rgba(217, 161, 95, 0.25); color: #94642b; }
+.risk-medium { background: rgba(217, 161, 95, 0.2); color: #94642b; }
+.risk-low { background: rgba(146, 189, 64, 0.2); color: #43591c; }
+
+[data-theme="dark"] .risk-high { color: #f28b85; }
+[data-theme="dark"] .risk-elevated { color: #d9a15f; }
+[data-theme="dark"] .risk-medium { color: #d9a15f; }
+[data-theme="dark"] .risk-low { color: #c7f36b; }
+
+.report-summary-box {
+  margin-top: 24px;
+  padding: 20px;
+  border-radius: 10px;
+  background-color: var(--ws-surface-subtle);
+  border: 1px solid var(--ws-border);
+}
+
+.summary-box-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--ws-text);
+}
+
+.summary-metrics-row {
+  display: flex;
+  gap: 32px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ws-border);
+}
+
+.summary-metrics-row small {
+  display: block;
+  font-size: 11px;
+  color: var(--ws-text-faint);
+  text-transform: uppercase;
+}
+
+.summary-metrics-row span, .summary-metrics-row code {
+  font-size: 13px;
+  color: var(--ws-text);
+}
+
+.real-activity-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 8px;
+}
+
+.activity-details {
+  flex: 1;
+}
+
+.activity-details b {
+  font-size: 14px;
+  color: var(--ws-text);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.activity-details p {
+  font-size: 13px;
+  color: var(--ws-text-muted);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.activity-details small {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-text-faint);
+}
+
+.step-completed {
+  background-color: var(--lime) !important;
+  color: #171916 !important;
+  font-weight: 700;
+}
+
