@@ -1,265 +1,237 @@
-# ChangeRadar — Software Change Impact Intelligence Platform
+# ChangeRadar
 
-**See the impact before it happens.**
+<p align="center">
+  <strong>Change your code. Understand its impact. Know what to test.</strong><br/>
+  A Python-focused change impact intelligence platform for mapping dependencies,
+  tracing affected callers, and guiding regression testing.
+</p>
 
-ChangeRadar is an enterprise-grade Software Change Impact Intelligence platform. It parses source code repositories, extracts function and class dependencies, traverses directed call graphs using NetworkX, intersects unified Git commit diffs with AST line boundaries, and deterministically identifies downstream blast radius and regression test suites before merging or deploying code.
+<p align="center">
+  <a href="https://changeradar-ui.onrender.com"><img src="https://img.shields.io/badge/Live%20App-Open-9BCB65?style=for-the-badge&logo=render&logoColor=111111" alt="Live app"/></a>
+  <a href="https://changeradar-api.onrender.com/docs"><img src="https://img.shields.io/badge/API-Docs-24292f?style=for-the-badge&logo=fastapi" alt="API docs"/></a>
+  <a href="https://changeradar-api.onrender.com/health"><img src="https://img.shields.io/badge/API-Health-24292f?style=for-the-badge" alt="API health"/></a>
+</p>
 
----
-
-## Architecture Overview
-
-```
-                      ┌────────────────────────────────────────┐
-                      │        Target Git Repository           │
-                      │   (e.g., commit HEAD~1 -> HEAD)        │
-                      └──────────────────┬─────────────────────┘
-                                         │
-                   ┌─────────────────────┴─────────────────────┐
-                   ▼                                           ▼
-       ┌───────────────────────┐                   ┌───────────────────────────┐
-       │   RepositoryScanner   │                   │     GitDiffProcessor      │
-       │ - Walks .py files     │                   │ - git diff -U0 base head  │
-       │ - Respects .gitignore │                   │ - Unified hunk parser     │
-       │ - Max 2MB file safety │                   │ - Add/Del/Rename handlers │
-       └───────────┬───────────┘                   └─────────────┬─────────────┘
-                   │                                             │
-                   ▼                                             ▼
-       ┌───────────────────────┐                   ┌───────────────────────────┐
-       │    PythonASTParser    │                   │   Intersect Diff Lines    │
-       │ - Pure ast.parse      │                   │ with AST Symbol Range     │
-       │ - Zero code execution │                   │ -> Detected Changed Syms  │
-       └───────────┬───────────┘                   └─────────────┬─────────────┘
-                   │                                             │
-                   ▼                                             │
-       ┌───────────────────────┐                                 │
-       │ DependencyGraphEngine │                                 │
-       │ - NetworkX DiGraph    │                                 │
-       │ - Reverse graph BFS   │◄────────────────────────────────┘
-       └───────────┬───────────┘
-                   │
-                   ▼
-       ┌───────────────────────────────────────────────────────┐
-       │               Impact Analysis Pipeline                │
-       │ - Blast radius classification (Depth 0, 1, 2+)        │
-       │ - Deterministic causal call paths                     │
-       │ - TestRecommendationEngine: prioritized test mapping  │
-       │ - Transparent, non-fabricated risk scoring formula   │
-       └───────────────────────────┬───────────────────────────┘
-                                   │
-                                   ▼
-       ┌───────────────────────────────────────────────────────┐
-       │                 FastAPI REST API                      │
-       │  POST /api/v1/scan     - Static repository AST scan   │
-       │  POST /api/v1/analyze  - Change impact analysis       │
-       │  GET  /api/v1/sample/* - Verified fixture demo        │
-       │  GET  /health          - Connection diagnostics       │
-       └───────────────────────────┬───────────────────────────┘
-                                   │
-                                   ▼
-       ┌───────────────────────────────────────────────────────┐
-       │                 ChangeRadar Workspace                 │
-       │ - Editorial Light Landing / Obsidian Dark Workspace   │
-       │ - Real-time Blast Radius & Call Tree Explorer         │
-       │ - AST Symbol Registry with Type Filters               │
-       │ - Recommended Regression Test Suites                  │
-       └───────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white"/>
+  <img src="https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white"/>
+  <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=111"/>
+  <img src="https://img.shields.io/badge/TypeScript-Frontend-3178C6?logo=typescript&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Analysis-AST%20%2B%20NetworkX-8A63D2"/>
+  <img src="https://img.shields.io/badge/Database-PostgreSQL%20%7C%20SQLite-4169E1?logo=postgresql&logoColor=white"/>
+</p>
 
 ---
 
----
+## Why ChangeRadar?
 
-## Key Features
+A small code change can affect more than the file you edited. A changed function or dependency can ripple through services and tests.
 
-1. **Pure Static Code Analysis (Zero Execution Security)**:
-   - Uses Python's standard library `ast.parse` in pure inspection mode.
-   - Project code is **never imported, executed, or eval'd**, eliminating arbitrary code execution vectors.
-   - Enforces a 2MB maximum file size ceiling to prevent memory exhaustion on oversized files.
+ChangeRadar inspects a Python codebase, builds a dependency graph, compares Git revisions, and explains which symbols may be affected. It helps developers focus code review and regression testing on the parts of a project that deserve attention.
 
-2. **Scanner Safety & Security**:
-   - Parses `.gitignore` rules (wildcards, folder prefixes, and file patterns).
-   - Prunes hidden directories (`.git`, `.venv`, `.cache`) and hidden files (`.secret.py`).
-   - Traverses directories with `followlinks=False` and drops external symlinks resolving outside the repository.
-   - Enforces localhost-only filesystem scanning; rejects drive roots (`C:\`) and protected system directories (`C:\Windows`, `/etc`, etc.) with `HTTP 403 Forbidden`.
+**The goal:** make change impact easier to see and easier to reason about.
 
-3. **Accurate Git Diff Intersect**:
-   - Parses unified diff hunks (`git diff -U0 base head`) with support for added files, deleted files, renamed files, and multiple modified functions within a single file.
-   - Intersects modification intervals `[start_line, end_line]` against AST symbol boundaries.
-   - Strict regex validation on commit references prevents flag or option injection.
+## What it does
 
-4. **NetworkX Directed Call Graphs & Blast Radius**:
-   - Constructs directed graphs (`Caller -> Callee`) and reverses them (`Callee -> Caller`).
-   - Breadth-first search traverses upstream callers with exact dependency paths (e.g. `auth.service.AuthService -> checkout.payment.process_payment -> tests.test_payment`).
-   - Differentiates direct changes (depth 0), direct dependents (depth 1), and transitive dependents (depth 2+).
+| Capability | What you get |
+| --- | --- |
+| **Codebase mapping** | Python modules, classes, functions, methods, imports, and call relationships |
+| **Change detection** | Changed symbols matched against Git diff hunks and AST source ranges |
+| **Impact analysis** | Direct and transitive callers, dependency paths, and affected files |
+| **Risk context** | Explainable structural blast-radius score and impact classification |
+| **Test guidance** | Prioritized regression-test recommendations based on detected relationships |
+| **Pull request workflow** | GitHub-connected PR analysis and automated impact summaries |
+| **Historical intelligence** | Change hotspots, recurring affected paths, test drift, and snapshot comparisons |
 
-5. **GitHub Integration (0.4)**:
-   - Connect GitHub accounts with AES-128-CBC / Fernet token encryption at rest derived via PBKDF2HMAC.
-   - Webhook processing with HMAC-SHA256 signature verification (`X-Hub-Signature-256`) and delivery deduplication (`X-GitHub-Delivery`).
-   - Automated Pull Request change impact analysis with sticky markdown PR comments and blast radius summaries.
+## How it works
 
-6. **Historical Change Intelligence (0.5)**:
-   - Multi-commit repository tracking across branches and PRs.
-   - Change hotspot detection identifying recurring points of instability.
-   - Cumulative downstream caller risk profiling and regression test drift analysis.
-   - Comparative diff analysis between historical analysis snapshots.
+<pre>
+Python repository ──▶ Safe scanner ──▶ Python AST parser
+                                           │
+                                           ▼
+Git base/head ──▶ Unified diff ──▶ Changed symbol matching
+                                           │
+Dependency graph ◀─────────────────────────┘
+       │
+       ▼
+Reverse dependency traversal
+       │
+       ▼
+Blast radius + call paths
+       │
+       ▼
+Risk context + test recommendations
+       │
+       ▼
+ChangeRadar workspace and API
+</pre>
 
-7. **Production Container Deployment & Background Jobs (0.6)**:
-   - Multi-stage unprivileged Docker images (`Dockerfile.backend`, `Dockerfile.frontend`).
-   - Production Docker Compose orchestration with PostgreSQL 16 and health checks.
-   - Nginx reverse proxy with HTTP security headers (`X-Frame-Options`, `CSP`, `nosniff`) and gzip compression.
-   - Resilient background job queue with process-restart crash reconciliation and multi-tenant concurrency quotas.
+### Analysis principles
 
----
+- **Static inspection:** source files are parsed with Python's AST; repository code is not imported or executed by the analysis engine.
+- **Traceable impact:** results include affected symbols and dependency paths to help explain why an item was included.
+- **Bounded scanning:** safeguards include file-size and repository limits, hidden-file handling, and .gitignore support.
+- **Heuristic, not prophecy:** risk scores describe structural blast radius. They are not probabilities that a deployment will fail.
+- **Python-first:** ChangeRadar 1.0 focuses on Python source analysis. Dynamic reflection and runtime-only relationships may not be discoverable statically.
 
-## Technology Stack
+## Product workflow
 
-- **Frontend**: React 18, TypeScript, Vite, custom design system, Framer Motion, Lucide icons.
-- **Backend**: Python 3.11+, FastAPI, Pydantic 2.0, SQLAlchemy 2.0, Alembic.
-- **Analysis**: Python standard library `ast`, NetworkX 3.4+.
-- **Security**: Fernet authenticated encryption, PBKDF2HMAC password & token hashing, HttpOnly session cookies.
-- **Database**: SQLite (local development with WAL) / PostgreSQL 16 (production).
-- **Deployment**: Docker, Docker Compose, Nginx.
+1. **Import a repository** into your workspace.
+2. **Scan the codebase** to extract symbols and dependency relationships.
+3. **Compare revisions** to identify changed functions, methods, or classes.
+4. **Inspect the blast radius** through affected callers, files, and call paths.
+5. **Review test recommendations** to guide your regression strategy.
+6. **Track changes over time** to discover hotspots and recurring impact patterns.
 
----
+## Technology
 
-## Installation & Quickstart
+| Layer | Technologies |
+| --- | --- |
+| Frontend | React 18, TypeScript, Vite |
+| API | Python, FastAPI, Pydantic |
+| Code analysis | Python ast, NetworkX |
+| Persistence | SQLAlchemy, Alembic, SQLite, PostgreSQL |
+| GitHub | Git integration, PR workflows, signed webhook validation |
+| Deployment | Docker, Nginx, Render |
+
+## Try the live application
+
+<p align="center"><a href="https://changeradar-ui.onrender.com"><strong>Launch ChangeRadar →</strong></a></p>
+
+| Resource | Link |
+| --- | --- |
+| Web application | https://changeradar-ui.onrender.com |
+| API documentation | https://changeradar-api.onrender.com/docs |
+| API health | https://changeradar-api.onrender.com/health |
+
+> **Free-hosting note:** the current Render deployment uses free services. Free instances may sleep when idle, so the first request after inactivity can take longer. The free PostgreSQL database is temporary and requires migration before its expiry date.
+
+## Run locally
 
 ### Prerequisites
-- Node.js 18+ and npm
+
 - Python 3.11+
+- Node.js 18+
+- npm
 - Git
 
-### 1. Backend Setup
-```bash
-cd backend
+### 1. Clone the repository
 
-# Create and activate virtual environment
-python -m venv .venv
-# Windows PowerShell:
-.venv\Scripts\Activate.ps1
-# macOS/Linux:
-source .venv/bin/activate
+<pre>git clone https://github.com/pvshivaprasad/ChangeRadar.git
+cd ChangeRadar</pre>
 
-# Install dependencies
-pip install -r requirements.txt
+### 2. Start the backend
 
-# Run migrations
+<pre>cd backend
+python -m venv .venv</pre>
+
+Windows PowerShell:
+
+<pre>.venv\Scripts\Activate.ps1</pre>
+
+macOS / Linux:
+
+<pre>source .venv/bin/activate</pre>
+
+Install dependencies and start the API:
+
+<pre>pip install -r requirements.txt
 alembic upgrade head
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000</pre>
 
-# Run FastAPI server on localhost:8000
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-- API Docs & Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- Health Check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+- API docs: http://127.0.0.1:8000/docs
+- Health: http://127.0.0.1:8000/health
 
-### 2. Frontend Setup
-```bash
-cd frontend
+### 3. Start the frontend
 
-# Install dependencies
+Open another terminal:
+
+<pre>cd frontend
 npm install
+npm run dev</pre>
 
-# Run Vite development server
-npm run dev
-```
-Open [http://localhost:5173/](http://localhost:5173/) in your browser.
+Open http://localhost:5173.
 
-### 3. Docker Deployment (Production)
-```bash
-# Copy example environment
-cp .env.production.example .env
+### Configuration
 
-# Build and start services
-docker compose up -d --build
-```
-Access the application through the reverse proxy at [http://localhost:80](http://localhost:80).
+Use environment variables for deployment-specific settings. Do not commit real credentials or production secrets.
 
----
+| Variable | Purpose |
+| --- | --- |
+| DATABASE_URL | Database connection string |
+| ENVIRONMENT | Runtime environment, such as development or production |
+| FRONTEND_ORIGIN | Canonical frontend origin |
+| CORS_ORIGINS | Comma-separated allowed browser origins |
+| COOKIE_SECURE | Secure-cookie behavior for HTTPS |
+| ENCRYPTION_KEY | Key used to protect stored integration credentials |
+| GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET | GitHub OAuth configuration, when enabled |
+| GITHUB_WEBHOOK_SECRET | GitHub webhook signature verification |
 
-## API Reference
+Generate and store secrets securely in your hosting provider's environment settings. Never paste secrets into source code, issues, screenshots, or public commits.
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/health` | Service status, environment, and masked database connection diagnostics. |
-| `GET` | `/ready` | Production readiness probe verifying database query execution. |
-| `GET` | `/api/v1/status` | API operational readiness check. |
-| `POST` | `/api/v1/auth/register` | Registers a new user with PBKDF2-hashed password and HttpOnly cookie. |
-| `POST` | `/api/v1/auth/login` | Authenticates user credentials and sets HttpOnly session token. |
-| `POST` | `/api/v1/auth/logout` | Revokes the active session token in the database. |
-| `GET` | `/api/v1/auth/me` | Returns profile of the currently authenticated session. |
-| `GET` | `/api/v1/repositories` | Lists all persisted repositories for the authenticated tenant. |
-| `POST` | `/api/v1/repositories` | Imports, scans, and persists a repository to SQLite/PostgreSQL. |
-| `DELETE`| `/api/v1/repositories/{id}` | Archives or removes a repository and cascaded records. |
-| `POST` | `/api/v1/scan` | Scans a local repository directory, returning all AST symbols and edges. |
-| `POST` | `/api/v1/analyze` | Executes change impact analysis between base and head commits. |
-| `GET` | `/api/v1/analyses` | Lists historical change impact analyses across repositories. |
-| `GET` | `/api/v1/historical/{repo_id}/summary` | Aggregated change hotspots, affected callers, and test drift. |
-| `GET` | `/api/v1/historical/{repo_id}/compare` | Comparative diff between two analysis snapshots. |
-| `GET` | `/api/v1/github/account` | Retrieves connected GitHub account and masked token. |
-| `POST` | `/api/v1/github/connect` | Links a GitHub personal access token with Fernet encryption. |
-| `POST` | `/api/v1/github/webhook` | Ingests GitHub webhooks with HMAC-SHA256 signature verification. |
-| `POST` | `/api/v1/jobs` | Enqueues background repository analysis or GitHub sync job. |
-| `GET` | `/api/v1/jobs/{job_id}` | Polls status, progress, and error state of a background job. |
-| `GET` | `/api/v1/sample/scan` | Returns scanned symbols and call graph for the verified synthetic test fixture. |
-| `GET` | `/api/v1/sample/run` | Executes live end-to-end impact analysis on the verified synthetic test fixture. |
+## API overview
 
-### Default Development Credentials
-- **Email**: `dev@changeradar.io`
-- **Password**: `changeradar2026`
-- **Demo Mode**: Quick-fill button available on the Sign-In interface.
+The API is versioned under /api/v1. Main route groups include:
 
----
+| Area | Example routes |
+| --- | --- |
+| Health and readiness | GET /health, GET /ready |
+| Authentication | /api/v1/auth/* |
+| Repositories and scanning | /api/v1/repositories, POST /api/v1/scan |
+| Change analysis | POST /api/v1/analyze |
+| Analysis history | /api/v1/analyses, /api/v1/historical/* |
+| GitHub | /api/v1/github/* |
+| Background jobs | /api/v1/jobs/* |
+| Sample analysis | /api/v1/sample/* |
 
-## Automated Verification & Test Results
+For request schemas and current route definitions, use the interactive [OpenAPI documentation](https://changeradar-api.onrender.com/docs).
 
-The platform includes an automated pytest suite covering units, edge cases, safety boundaries, and integration flows:
+## Tests
 
-```bash
-# Run backend test suite
-cd backend
-python -m pytest tests -v
-```
+Run the backend test suite from the repository root:
 
-**Results:**
-- **95 Total Tests**: **94 passed**, 1 skipped (OS symlink privilege check on Windows).
-- **Test Modules**:
-  - `test_github_deep_audit.py`: Fernet token encryption, production key enforcement, path traversal guards, webhook HMAC security matrix, multi-tenant isolation.
-  - `test_controlled_historical_repo.py`: End-to-end multi-commit Git repository with AST scans, hotspot detection, and comparative snapshot diffs.
-  - `test_background_jobs_deep_audit.py`: Crash reconciliation on startup, duplicate job suppression, per-user concurrency quotas.
-  - `test_deployment_and_postgres.py`: PostgreSQL DDL compilation, health/ready probes, job throttling.
-  - `test_dependency_graph_accuracy.py`: Direct/indirect calls, imported aliases, class methods, local variable type inference, recursion, cycles.
-  - `test_changed_symbol_detection_accuracy.py`: Function additions, deletions, renames, moved functions, per-file specificity.
-  - `test_impact_analysis_accuracy.py`: Path provenance, shortest-path BFS, cycle termination in cyclic meshes.
-  - `test_risk_score_accuracy.py`: Deterministic score formulas, fanout ceilings, boundary limits.
-  - `test_scanner_safety.py`: `.gitignore` rules, hidden folders/files, oversized file cap (> 2MB), syntax/null-byte resilience.
-  - `test_security_audit_stage2.py`: Hashed tokens in DB, multi-session coexistence, rate limiting, path traversal blocks.
+<pre>cd backend
+python -m pytest tests -v</pre>
 
----
+The recorded release validation reported **94 passed, 1 skipped, 0 failed** (95 collected). The skipped test depends on an OS symlink permission unavailable in that Windows test environment. See [CHANGE_RADAR_1.0_FINAL_VALIDATION.md](CHANGE_RADAR_1.0_FINAL_VALIDATION.md) for the detailed validation record.
 
-## Real-World Repository Validation
+Build the frontend:
 
-ChangeRadar was validated against **ScamShield**, an existing multi-module Python project:
-- **Scan Metrics**: 10 Python files, 76 AST symbols, 395 dependency edges parsed in **13.45 ms**.
-- **Impact Analysis**: Modifying `scamshield.rules.analyze` between `master` and `feature/enhance-rules` identified:
-  - 1 direct modified function (`scamshield.rules.analyze`)
-  - 19 impacted downstream symbols across depth 0, 1, and 2 (`scamshield.model.explain`, `api.analyze_sms`, etc.)
-  - 22 targeted regression test recommendations from `tests/test_scamshield.py` and `tests/test_api.py`.
-  - Execution completed in **28 ms** with zero runtime code execution.
+<pre>cd frontend
+npm install
+npm run build</pre>
 
----
+## Validation example
 
-## Limitations & Production Prerequisites
+A controlled validation run against the ScamShield Python repository recorded:
 
-1. **Host Environment Prerequisites**:
-   - **PostgreSQL**: Production deployment requires a live PostgreSQL instance configured via `DATABASE_URL`. In local development, SQLite with WAL mode is used.
-   - **Docker Engine**: Container builds require Docker 24+ and Docker Compose v2.
-   - **GitHub Remote API**: Real PR commenting and repository cloning require `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and a GitHub access token with `repo` scope.
-2. **Language Support**: ChangeRadar 1.0 focuses on Python (3.8 - 3.13) AST analysis. Multi-language support (JavaScript/TypeScript via Tree-sitter) is scheduled for subsequent milestones.
-3. **Dynamic Reflection**: Pure static AST parsing intentionally excludes runtime dynamic evaluation (e.g. `eval()`, dynamic `getattr()`) to guarantee zero code execution safety.
+- 10 Python files scanned
+- 76 AST symbols extracted
+- 395 dependency edges identified
+- 19 impacted symbols in the selected change scenario
+- 22 regression-test recommendations
 
----
+These are results from that specific fixture and run, not a performance or accuracy guarantee for arbitrary repositories.
+
+## Scope and limitations
+
+- **Language coverage:** Python-focused in this release; JavaScript and TypeScript analysis are not currently claimed.
+- **Static-analysis limits:** dynamic imports, reflection, runtime-generated calls, and framework-specific behavior can be missed.
+- **Risk interpretation:** the score is a deterministic heuristic based on observed structural impact, not a statistical failure prediction.
+- **Test recommendations:** recommendations are inferred from code relationships; ChangeRadar does not claim those tests were executed.
+- **GitHub features:** remote operations depend on valid GitHub credentials, permissions, and webhook configuration.
+- **Hosting:** free-tier services can sleep and have resource/persistence constraints. Review the deployment guide before relying on the hosted instance for important work.
+
+## Documentation
+
+- [Deployment guide](DEPLOYMENT.md)
+- [Final validation report](CHANGE_RADAR_1.0_FINAL_VALIDATION.md)
+- [GitHub repository](https://github.com/pvshivaprasad/ChangeRadar)
+
+## Contributing
+
+Issues, bug reports, and thoughtful improvements are welcome. When reporting a problem, include the affected workflow, expected behavior, actual behavior, and relevant sanitized logs. Never include access tokens, database URLs, or other secrets.
 
 ## License
 
-Proprietary — ChangeRadar Enterprise Change Intelligence Platform.
-
+The repository currently describes ChangeRadar as proprietary. No open-source license is granted unless a license file is added to the repository.
